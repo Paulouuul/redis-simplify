@@ -1,6 +1,4 @@
 """Testes para o RedisClient"""
-
-import pytest
 from redis_simplify import RedisClient
 
 

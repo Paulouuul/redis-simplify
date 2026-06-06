@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redis-simplify"
-version = "1.1.0"
+version = "1.1.1"
 description = "Wrapper de conveniência para Redis - conexão, JSON helpers e reconexão automática"
 readme = "README.md"
 authors = [
