@@ -17,6 +17,18 @@ jobs:
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12']
     
+    # 🔥 Serviço Redis via Docker
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -25,11 +37,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
-    - name: Start Redis
-      run: |
-        sudo systemctl start redis-server || true
-        redis-server --version
-    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -37,5 +44,14 @@ jobs:
         pip install redis>=4.0.0
         pip install -e .
     
+    - name: Wait for Redis
+      run: |
+        sleep 5
+        redis-cli ping || echo "Redis not ready yet"
+    
     - name: Run tests
-      run: pytest tests/ -v
+      run: |
+        pytest tests/ -v
+      env:
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
