@@ -5,8 +5,8 @@ import logging
 from typing import Optional, Set, List
 import json
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('redis_simplify.client')
+logger.addHandler(logging.NullHandler())
 
 class RedisClient:
     """Cliente Redis genérico SÍNCRONO - pode ser usado por qualquer parte do sistema"""
@@ -42,8 +42,6 @@ class RedisClient:
         """Configura o nível de logging do cliente"""
         level = getattr(logging, log_level.upper(), logging.INFO)
         logger.setLevel(level)
-        
-        logging.getLogger().setLevel(level)
         
         logger.debug(f"Log level set to {log_level.upper()}")
 
