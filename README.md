@@ -444,7 +444,7 @@ Bug reports, improvements, and feature suggestions are appreciated.
 Useful resources:
 
 * Redis Commands: https://redis.io/commands
-* redis-py Documentation: https://redis-py.readthedocs.io/
+* redis-py Documentation: https://redis.readthedocs.io/en/latest/
 * redis-simplify GitHub: https://github.com/Paulouuul/redis-simplify
 
 ---
