@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redis-simplify"
+version = "0.1.1"
+description = "Wrapper de conveniência para Redis - conexão, JSON helpers e reconexão automática"
+readme = "README.md"
+authors = [
+    {name = "Paulo Ricardo Tebet Lyrio", email = "tebetpaulo91@yahoo.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "redis>=4.0.0"
+]
+requires-python = ">=3.8"
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Paulouuul/redis-simplify"
+Repository = "https://github.com/Paulouuul/redis-simplify"
+Issues = "https://github.com/Paulouuul/redis-simplify/issues"

@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+redis_simplify/__init__.py
+redis_simplify/client.py
+redis_simplify.egg-info/PKG-INFO
+redis_simplify.egg-info/SOURCES.txt
+redis_simplify.egg-info/dependency_links.txt
+redis_simplify.egg-info/requires.txt
+redis_simplify.egg-info/top_level.txt
+tests/test_client.py
