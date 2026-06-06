@@ -2,6 +2,7 @@
 
 [![PyPI Version](https://img.shields.io/pypi/v/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/redis-simplify)](https://pypi.org/project/redis-simplify/)
+[![Tests](https://github.com/Paulouuul/redis-simplify/actions/workflows/test.yml/badge.svg)](https://github.com/Paulouuul/redis-simplify/actions)
 [![License](https://img.shields.io/pypi/l/redis-simplify)](LICENSE)
 
 A lightweight synchronous convenience wrapper for Redis built on top of **redis-py**.
@@ -36,7 +37,7 @@ A lightweight synchronous convenience wrapper for Redis built on top of **redis-
 
 ## Installation
 
-### Basic Usage
+### Basic Installation
 
 ```bash
 pip install redis-simplify
@@ -92,7 +93,8 @@ client = RedisClient(
     host="localhost",   # Required
     port=6379,          # Default: 6379
     password=None,      # Optional
-    db=0                # Default: 0
+    db=0,               # Default: 0
+    log_level="INFO"    # Default: INFO
 )
 ```
 
@@ -236,6 +238,36 @@ This approach helps keep application code clean and reduces repetitive `try/exce
 
 ---
 
+## Logging
+
+The client uses Python's built-in `logging` module. Default log level is `INFO`.
+
+### Configuring Log Level
+
+```python
+# Set during initialization
+client = RedisClient(host="localhost", log_level="DEBUG")
+
+# Or change after creation
+client.set_log_level("WARNING")
+```
+### Log 
+
+|Level  |Shows                                  |
+| --------------------------------------------- |
+|DEBUG	|All operations (set, get, delete, etc.)|
+|INFO	|Connections and errors (default)       |
+|WARNING|Warnings and errors only               |
+|ERROR	|Errors only                            |
+
+## Example Output with DEBUG
+
+```bash
+INFO:redis_simplify.client:RedisClient connected: localhost:6379
+DEBUG:redis_simplify.client:Set test = hello world...
+DEBUG:redis_simplify.client:Get test: hello world...
+```
+
 ## Available Methods
 
 ### Strings
@@ -302,6 +334,7 @@ This approach helps keep application code clean and reduces repetitive `try/exce
 | `scan(cursor=0, match=None, count=None)` | Iterate keys using SCAN    |
 | `flush_all()`                            | Remove all Redis databases |
 | `close()`                                | Close the connection       |
+| `set_log_level(level)`                   | Change log level at runtime|
 
 ---
 
@@ -378,6 +411,7 @@ Many projects repeatedly implement:
 | Reconnection        | Manual handling     | Automatic                          |
 | JSON helpers        | No built-in helpers | `set_json()` / `get_json()`        |
 | Configuration       | Highly flexible     | Explicit constructor configuration |
+| Logging control     | Basic               | Configurable log levels            |
 | Convenience wrapper | No                  | Yes                                |
 | Safe defaults       | No                  | Yes                                |
 

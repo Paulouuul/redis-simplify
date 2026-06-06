@@ -1,5 +1,6 @@
 import tomllib
 from pathlib import Path
+from .client import RedisClient
 
 def _get_version():
     try:

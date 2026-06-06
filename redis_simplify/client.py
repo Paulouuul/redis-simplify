@@ -19,7 +19,8 @@ class RedisClient:
         db: int = 0,
         decode_responses: bool = True,
         socket_keepalive: bool = True,
-        health_check_interval: int = 30
+        health_check_interval: int = 30,
+        log_level: Optional[str] = None
     ):
         # Configuração obrigatória via parâmetros (não lê .env)
         self.host = host
@@ -30,9 +31,34 @@ class RedisClient:
         self.decode_responses = decode_responses
         self.socket_keepalive = socket_keepalive
         self.health_check_interval = health_check_interval
+
+        if log_level:
+            self._configure_logging(log_level)
         
         self.client: Optional[redis.Redis] = None
         self._connect()
+
+    def _configure_logging(self, log_level: str):
+        """Configura o nível de logging do cliente"""
+        level = getattr(logging, log_level.upper(), logging.INFO)
+        logger.setLevel(level)
+        
+        logging.getLogger().setLevel(level)
+        
+        logger.debug(f"Log level set to {log_level.upper()}")
+
+    def set_log_level(self, level: str):
+        """Permite mudar o log level após a criação do cliente"""
+        level_upper = level.upper()
+        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        
+        if level_upper not in valid_levels:
+            logger.warning(f"Invalid log level: {level}. Using INFO as fallback.")
+            level_upper = "INFO"
+        
+        log_level = getattr(logging, level_upper)
+        logger.setLevel(log_level)
+        logger.info(f"Log level changed to {level_upper}")
     
     def _connect(self):
         """Estabelece conexão com Redis (síncrona)"""
@@ -48,9 +74,9 @@ class RedisClient:
             )
             # Testa conexão
             self.client.ping()
-            logger.info(f"RedisClient síncrono conectado: {self.host}:{self.port}")
+            logger.info(f"RedisClient connected: {self.host}:{self.port}")
         except Exception as e:
-            logger.error(f"Erro ao conectar Redis: {e}")
+            logger.error(f"Redis connection error: {e}")
             self.client = None
 
     def _ensure_connection(self) -> bool:
@@ -72,7 +98,7 @@ class RedisClient:
         try:
             return self.client.ping()
         except Exception as e:
-            logger.error(f"Erro no ping: {e}")
+            logger.error(f"Ping error: {e}")
             return False
     
 
@@ -88,7 +114,7 @@ class RedisClient:
             # Redis-py retorna (cursor, keys)
             return self.client.scan(cursor=cursor, match=match, count=count)
         except Exception as e:
-            logger.error(f"Erro no scan: {e}")
+            logger.error(f"Scan error: {e}")
             return 0, []
     # ========== OPERAÇÕES DE STRING ==========
     
@@ -103,7 +129,7 @@ class RedisClient:
                 self.client.set(key, value)
             return True
         except Exception as e:
-            logger.error(f"Erro no set {key}: {e}")
+            logger.error(f"Set {key}: {e}")
             return False
     
     def get(self, key: str) -> Optional[str]:
@@ -113,7 +139,7 @@ class RedisClient:
         try:
             return self.client.get(key)
         except Exception as e:
-            logger.error(f"Erro no get {key}: {e}")
+            logger.error(f"Error on get {key}: {e}")
             return None
     
     def delete(self, *keys: str) -> int:
@@ -123,7 +149,7 @@ class RedisClient:
         try:
             return self.client.delete(*keys)
         except Exception as e:
-            logger.error(f"Erro no delete {keys}: {e}")
+            logger.error(f"Error on delete {keys}: {e}")
             return 0
     
     def exists(self, key: str) -> bool:
@@ -134,7 +160,7 @@ class RedisClient:
             result = self.client.exists(key)
             return bool(result)
         except Exception as e:
-            logger.error(f"Erro no exists {key}: {e}")
+            logger.error(f"Error on exists {key}: {e}")
             return False
     
     def expire(self, key: str, seconds: int) -> bool:
@@ -145,7 +171,7 @@ class RedisClient:
             result = self.client.expire(key, seconds)
             return bool(result)
         except Exception as e:
-            logger.error(f"Erro no expire {key}: {e}")
+            logger.error(f"Error on expire {key}: {e}")
             return False
     
     def incr(self, key: str) -> int:
@@ -155,7 +181,7 @@ class RedisClient:
         try:
             return self.client.incr(key)
         except Exception as e:
-            logger.error(f"Erro no incr {key}: {e}")
+            logger.error(f"Error on incr {key}: {e}")
             return 0
         
     def decr(self, key: str) -> int:
@@ -165,7 +191,7 @@ class RedisClient:
         try:
             return self.client.decr(key)
         except Exception as e:
-            logger.error(f"Erro no decr {key}: {e}")
+            logger.error(f"Error on decr {key}: {e}")
             return 0
     
     # ========== OPERAÇÕES DE SET (CONJUNTOS) ==========
@@ -177,7 +203,7 @@ class RedisClient:
         try:
             return self.client.sadd(key, *values)
         except Exception as e:
-            logger.error(f"Erro no sadd {key}: {e}")
+            logger.error(f"Error on sadd {key}: {e}")
             return 0
     
     def srem(self, key: str, *values: str) -> int:
@@ -197,7 +223,7 @@ class RedisClient:
         try:
             return self.client.smembers(key)
         except Exception as e:
-            logger.error(f"Erro no smembers {key}: {e}")
+            logger.error(f"Error on smembers {key}: {e}")
             return set()
     
     def sismember(self, key: str, value: str) -> bool:
@@ -208,7 +234,7 @@ class RedisClient:
             result = self.client.sismember(key, value)
             return bool(result)
         except Exception as e:
-            logger.error(f"Erro no sismember {key}: {e}")
+            logger.error(f"Error on sismember {key}: {e}")
             return False
     
     def scard(self, key: str) -> int:
@@ -218,7 +244,7 @@ class RedisClient:
         try:
             return self.client.scard(key)
         except Exception as e:
-            logger.error(f"Erro no scard {key}: {e}")
+            logger.error(f"Error on scard {key}: {e}")
             return 0
     
     # ========== OPERAÇÕES DE HASH ==========
@@ -230,7 +256,7 @@ class RedisClient:
         try:
             return self.client.hset(key, field, value)
         except Exception as e:
-            logger.error(f"Erro no hset {key}: {e}")
+            logger.error(f"Error on hset {key}: {e}")
             return 0
     
     def hget(self, key: str, field: str) -> Optional[str]:
@@ -240,7 +266,7 @@ class RedisClient:
         try:
             return self.client.hget(key, field)
         except Exception as e:
-            logger.error(f"Erro no hget {key}: {e}")
+            logger.error(f"Error on hget {key}: {e}")
             return None
     
     def hgetall(self, key: str) -> dict:
@@ -250,7 +276,7 @@ class RedisClient:
         try:
             return self.client.hgetall(key)
         except Exception as e:
-            logger.error(f"Erro no hgetall {key}: {e}")
+            logger.error(f"Error on hgetall {key}: {e}")
             return {}
     
     # ========== OPERAÇÕES DE LISTA ==========
@@ -262,7 +288,7 @@ class RedisClient:
         try:
             return self.client.lpush(key, *values)
         except Exception as e:
-            logger.error(f"Erro no lpush {key}: {e}")
+            logger.error(f"Error on lpush {key}: {e}")
             return 0
     
     def rpush(self, key: str, *values: str) -> int:
@@ -272,7 +298,7 @@ class RedisClient:
         try:
             return self.client.rpush(key, *values)
         except Exception as e:
-            logger.error(f"Erro no rpush {key}: {e}")
+            logger.error(f"Error on rpush {key}: {e}")
             return 0
     
     def lrange(self, key: str, start: int, end: int) -> List[str]:
@@ -282,7 +308,7 @@ class RedisClient:
         try:
             return self.client.lrange(key, start, end)
         except Exception as e:
-            logger.error(f"Erro no lrange {key}: {e}")
+            logger.error(f"Error on lrange {key}: {e}")
             return []
     
     # ========== OPERAÇÕES COM JSON ==========
@@ -312,12 +338,12 @@ class RedisClient:
             return
         try:
             self.client.flushall()
-            logger.warning("Redis flushall executado!")
+            logger.warning("Redis flushall executed!")
         except Exception as e:
-            logger.error(f"Erro no flushall: {e}")
+            logger.error(f"Error on flushall: {e}")
     
     def close(self):
         """Fecha conexão"""
         if self.client:
             self.client.close()
-            logger.info("Conexão Redis fechada")
+            logger.info("Redis connection closed!")
