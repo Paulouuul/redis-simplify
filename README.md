@@ -2,7 +2,6 @@
 
 [![PyPI Version](https://img.shields.io/pypi/v/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/redis-simplify)](https://pypi.org/project/redis-simplify/)
-[![Tests](https://github.com/Paulouuul/redis-simplify/actions/workflows/test.yml/badge.svg)](https://github.com/Paulouuul/redis-simplify/actions)
 [![License](https://img.shields.io/pypi/l/redis-simplify)](LICENSE)
 
 A lightweight synchronous convenience wrapper for Redis built on top of **redis-py**.
