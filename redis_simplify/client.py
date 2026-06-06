@@ -1,4 +1,4 @@
-# app/core/redis_client.py
+#redis_simplify/client
 import redis
 import os
 import logging
