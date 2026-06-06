@@ -15,7 +15,6 @@ A lightweight synchronous convenience wrapper for Redis built on top of **redis-
 ## Features
 
 * Explicit Redis configuration (`host`, `port`, `password`, `db`)
-* Does **not** automatically read `.env` files
 * Automatic reconnection when Redis becomes unavailable
 * Centralized logging and error handling
 * JSON helpers for storing Python dictionaries
@@ -96,8 +95,6 @@ client = RedisClient(
     log_level="INFO"    # Default: INFO
 )
 ```
-
-The package does not automatically read `.env` files.
 
 Configuration is intentionally explicit to keep behavior predictable and framework-agnostic.
 
