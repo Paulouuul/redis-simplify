@@ -253,12 +253,12 @@ client.set_log_level("WARNING")
 ```
 ### Log 
 
-|Level  |Shows                                  |
-| --------------------------------------------- |
-|DEBUG	|All operations (set, get, delete, etc.)|
-|INFO	|Connections and errors (default)       |
-|WARNING|Warnings and errors only               |
-|ERROR	|Errors only                            |
+| Level     | Shows                                  |
+|-----------|----------------------------------------|
+|`DEBUG`    | All operations (set, get, delete, etc.)|
+| `INFO`    | Connections and errors (default)       |
+| `WARNING` | Warnings and errors only               |
+| `ERROR`   | Errors only                            |
 
 ## Example Output with DEBUG
 
