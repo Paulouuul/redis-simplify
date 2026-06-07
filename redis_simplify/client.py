@@ -67,8 +67,7 @@ class RedisClient(AllMixins):
     def __getattr__(self, name):
         if hasattr(self.client, name):
             warnings.warn(
-                f"Using native Redis method '{name}'. "
-                f"Consider implementing it in RedisClient for better DX.",
+                f"Using native Redis method '{name}'. ",
                 DeprecationWarning,
                 stacklevel=2
             )
