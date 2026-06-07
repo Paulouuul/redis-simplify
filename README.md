@@ -450,11 +450,20 @@ with client.lock("payment_processing", timeout=10):
     # Lock automatically released after the block
 ```
 #### Rate Limiting
+
+##### Manual check
 ```python
-# Allow 10 requests per minute per user
-if client.rate_limit_check(f"api:user:{user_id}", max_requests=10, window_seconds=60):
-    handle_request()
-else:
+if client.rate_limit_check(f"api:user:{user_id}", 10, 60):
+    data = client.get(f"user:{user_id}")
+```
+
+#### Automatic with run_with_rate_limit (simpler!)
+```python
+data = client.run_with_rate_limit(
+    client.get, f"api:user:{user_id}", 10, 60,
+    f"user:{user_id}"
+)
+if data is None:
     return {"error": "Rate limit exceeded"}, 429
 ```
 #### Cache Pattern (Get or Set)
@@ -550,24 +559,6 @@ client.mset({"user:1": "John", "user:2": "Jane", "user:3": "Bob"})
 # Get multiple keys
 users = client.mget(["user:1", "user:2", "user:3"])
 print(users)  # {"user:1": "John", "user:2": "Jane", "user:3": "Bob"}
-```
-
-#### Rate Limiting
-
-##### Manual check
-```python
-if client.rate_limit_check(f"api:user:{user_id}", 10, 60):
-    data = client.get(f"user:{user_id}")
-```
-
-#### Automatic with run_with_rate_limit (simpler!)
-```python
-data = client.run_with_rate_limit(
-    client.get, f"api:user:{user_id}", 10, 60,
-    f"user:{user_id}"
-)
-if data is None:
-    return {"error": "Rate limit exceeded"}, 429
 ```
 
 ## Shared Instance Pattern
