@@ -1,11 +1,13 @@
 import logging
 from typing import List, Dict, Optional
 
+from redis_simplify.mixins.metrics import MetricsMixin
+
 logger = logging.getLogger('redis_simplify.client')
 
 class UtilsMixin:
     """Utilitários avançados"""
-    
+    @MetricsMixin._recorded
     def mget(self, keys: List[str]) -> Dict[str, Optional[str]]:
         """Obtém múltiplas chaves de uma vez"""
         if not keys:
@@ -20,7 +22,7 @@ class UtilsMixin:
         except Exception as e:
             logger.error(f"Error on mget {keys}: {e}")
             return {key: None for key in keys}
-    
+    @MetricsMixin._recorded
     def mset(self, mapping: Dict[str, str], expire_seconds: Optional[int] = None) -> bool:
         """Define múltiplas chaves de uma vez"""
         if not mapping:
@@ -41,7 +43,7 @@ class UtilsMixin:
         except Exception as e:
             logger.error(f"Error on mset: {e}")
             return False
-    
+    @MetricsMixin._recorded
     def rename_safe(self, old_key: str, new_key: str, overwrite: bool = False) -> bool:
         """Renomeia chave com verificação de segurança"""
         if not self._ensure_connection():
@@ -57,7 +59,7 @@ class UtilsMixin:
         except Exception as e:
             logger.error(f"Error renaming {old_key} to {new_key}: {e}")
             return False
-    
+    @MetricsMixin._recorded
     def copy_key(self, source: str, destination: str, replace: bool = False) -> bool:
         """Copia chave de um lugar para outro"""
         if not self._ensure_connection():

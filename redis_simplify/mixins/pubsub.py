@@ -1,12 +1,13 @@
 import logging
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
+from redis_simplify.mixins.metrics import MetricsMixin
 logger = logging.getLogger('redis_simplify.client')
 
 class PubSubMixin:
     """Publicação e inscrição simplificadas"""
-    
+    @MetricsMixin._recorded
     def publish(self, channel: str, message: str) -> int:
         """Publica mensagem em canal"""
         if not self._ensure_connection():

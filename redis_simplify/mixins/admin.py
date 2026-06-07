@@ -1,9 +1,11 @@
 import logging
 
+from redis_simplify.mixins.metrics import MetricsMixin
+
 logger = logging.getLogger('redis_simplify.client')
 
 class AdminMixin:
-    
+    @MetricsMixin._recorded
     def scan(self, cursor: int = 0, match: str = None, count: int = None) -> tuple:
         """Comando SCAN do Redis"""
         if not self._ensure_connection():
@@ -14,6 +16,7 @@ class AdminMixin:
             logger.error(f"Scan error: {e}")
             return 0, []
         
+    @MetricsMixin._recorded
     def flush_all(self):
         """Limpa tudo (CUIDADO: apenas para testes!)"""
         if not self._ensure_connection():

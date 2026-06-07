@@ -6,7 +6,6 @@ logger = logging.getLogger('redis_simplify.client')
 
 class CacheMixin:
     """Utilitários de cache"""
-    
     def get_or_set(self, key: str, func: Callable, ttl: Optional[int] = None) -> Any:
         """
         Retorna valor do cache ou executa função e armazena.
@@ -21,7 +20,7 @@ class CacheMixin:
         value = func()
         self.set(key, str(value) if not isinstance(value, (dict, list)) else json.dumps(value), ttl)
         return value
-    
+
     def get_or_set_json(self, key: str, func: Callable, ttl: Optional[int] = None) -> dict:
         """Versão para JSON"""
         value = self.get_json(key)
@@ -31,7 +30,7 @@ class CacheMixin:
         value = func()
         self.set_json(key, value, ttl)
         return value
-    
+
     def delete_pattern(self, pattern: str, batch_size: int = 1000) -> int:
         """Deleta todas chaves que correspondem a um padrão"""
         deleted = 0
@@ -46,7 +45,7 @@ class CacheMixin:
         
         logger.info(f"Deleted {deleted} keys matching pattern '{pattern}'")
         return deleted
-    
+
     def scan_iter(self, match: Optional[str] = None, count: int = 100):
         """Iterator para varrer chaves sem carregar tudo na memória"""
         cursor = 0
