@@ -92,7 +92,7 @@ client = RedisClient(
     port=6379,          # Default: 6379
     password=None,      # Optional
     db=0,               # Default: 0
-    log_level="INFO"    # Default: INFO
+    log_level=None      # Default: None (inherits from root logger)
 )
 ```
 
@@ -236,7 +236,10 @@ This approach helps keep application code clean and reduces repetitive `try/exce
 
 ## Logging
 
-The client uses Python's built-in `logging` module. Default log level is `INFO`.
+The client uses Python's built-in `logging` module. 
+
+By default (`log_level=None`), the logger inherits the level from the root logger 
+(usually `WARNING`). You can override this by setting `log_level` or using `set_log_level()`.
 
 ### Configuring Log Level
 
@@ -252,7 +255,7 @@ client.set_log_level("WARNING")
 | Level     | Shows                                  |
 |-----------|----------------------------------------|
 |`DEBUG`    | All operations (set, get, delete, etc.)|
-| `INFO`    | Connections and errors (default)       |
+| `INFO`    | Connections and errors                 |
 | `WARNING` | Warnings and errors only               |
 | `ERROR`   | Errors only                            |
 
