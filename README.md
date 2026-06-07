@@ -22,14 +22,16 @@ A lightweight synchronous convenience wrapper for Redis built on top of **redis-
 * Fully tested with `pytest`
 * Lightweight implementation
 * Synchronous API
-* Support for the most commonly used Redis operations:
-
-  * Strings
-  * Sets
-  * Hashes
-  * Lists
-  * Pipelines
-  * SCAN iteration
+* **18 specialized mixins** for organized code
+* **Distributed locks** with context manager
+* **Rate limiting** utilities
+* **Cache utilities** (get_or_set, delete_pattern)
+* **Pub/Sub** simplified
+* **Performance metrics** collection
+* **Health checks** and monitoring
+* **Batch operations** support
+* **Decorators** for caching and retry
+* Support for **Sorted Sets**, **Hashes**, **Lists**, **Sets**, **Strings**
 
 ---
 
@@ -273,7 +275,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 
 | Method                                 | Description             |
 | -------------------------------------- | ----------------------- |
-| `set(key, value, expire_seconds=None)` | Set a value             |
+| `set(key, value, expire_seconds=None, nx=False, xx=False)` | Set a value with options |
 | `get(key)`                             | Retrieve a value        |
 | `delete(*keys)`                        | Delete one or more keys |
 | `exists(key)`                          | Check if a key exists   |
@@ -323,6 +325,74 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `lrange(key, start, end)` | Retrieve a range of values   |
 
 ---
+### Sorted Sets (ZSET)
+| Method                                      | Description                    |
+| ------------------------------------------- | ------------------------------ |
+| `zadd(key, mapping)`                        | Add members with scores        |
+| `zrange(key, start, stop, withscores=False)`| Retrieve members by rank        |
+| `zrevrange(key, start, stop, withscores=False)` | Retrieve members in reverse |
+| `zrank(key, member)`                        | Get member rank                |
+| `zscore(key, member)`                       | Get member score               |
+| `zincrby(key, amount, member)`              | Increment member score         |
+| `zrem(key, *members)`                       | Remove members                 |
+| `zcard(key)`                                | Get member count               |
+
+### Cache Utilities
+| Method                                          | Description                         |
+| ----------------------------------------------- | ----------------------------------- |
+| `get_or_set(key, func, ttl=None)`               | Get from cache or set from function |
+| `get_or_set_json(key, func, ttl=None)`          | JSON version of get_or_set          |
+| `delete_pattern(pattern, batch_size=1000)`      | Delete all keys matching pattern    |
+| `scan_iter(match=None, count=100)`              | Iterate keys without loading all    |
+
+### Rate Limiting
+| Method                                                  | Description                       |
+| ------------------------------------------------------- | --------------------------------- |
+| `rate_limit_check(key, max_requests, window_seconds)`   | Check if action is allowed        |
+| `rate_limit_remaining(key, max_requests, window_seconds)` | Get remaining requests          |
+| `rate_limit_reset(key, window_seconds)`                 | Get seconds until reset           |
+
+### Distributed Lock
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `lock(name, timeout=10, blocking_timeout=None)` | Context manager for distributed lock |
+
+### Pub/Sub
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `publish(channel, message)`                 | Publish message to channel          |
+| `publish_json(channel, data)`               | Publish JSON to channel             |
+| `subscribe(channel, callback, pattern=False)` | Subscribe to channel with callback |
+
+### Batch Operations
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `batch_get(keys)`                           | Get multiple keys via pipeline      |
+| `batch_set(items, expire_seconds=None)`     | Set multiple keys via pipeline      |
+| `batch_delete(keys)`                        | Delete multiple keys via pipeline   |
+
+### Utils
+| Method                                          | Description                         |
+| ----------------------------------------------- | ----------------------------------- |
+| `mget(keys)`                                    | Get multiple keys at once           |
+| `mset(mapping, expire_seconds=None)`            | Set multiple keys at once           |
+| `rename_safe(old_key, new_key, overwrite=False)`| Rename with safety check            |
+| `copy_key(source, destination, replace=False)`  | Copy key to another location        |
+
+### Health & Metrics
+| Method                          | Description                         |
+| ------------------------------- | ----------------------------------- |
+| `health_check()`                | Check Redis server health           |
+| `ping_latency(count=10)`        | Measure ping latency                |
+| `enable_metrics()`              | Start collecting performance metrics|
+| `get_metrics()`                 | Retrieve collected metrics          |
+| `reset_metrics()`               | Reset all metrics                   |
+
+### Decorators
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `@cached(ttl=300, key_prefix="")`           | Automatic caching decorator         |
+| `@retry(max_attempts=3, delay=0.5)`         | Retry with exponential backoff      |
 
 ### Utilities
 
@@ -369,7 +439,118 @@ while True:
 ```
 
 ---
+## Advanced Examples
 
+### Distributed Lock
+
+```python
+# Ensure only one instance executes a critical section
+with client.lock("payment_processing", timeout=10):
+    process_payment()
+    # Lock automatically released after the block
+```
+### Rate Limiting
+```python
+# Allow 10 requests per minute per user
+if client.rate_limit_check(f"api:user:{user_id}", max_requests=10, window_seconds=60):
+    handle_request()
+else:
+    return {"error": "Rate limit exceeded"}, 429
+```
+### Cache Pattern (Get or Set)
+
+```python
+def get_user_profile(user_id):
+    # Returns cached value or computes and stores it
+    return client.get_or_set(
+        f"user:{user_id}",
+        lambda: fetch_user_from_database(user_id),
+        ttl=300  # 5 minutes
+    )
+```
+### Delete Pattern
+```python
+# Delete all session keys for a user
+client.delete_pattern("session:user:123:*")
+```
+### SCAN Iterator (Memory Efficient)
+```python
+# Iterate through keys without loading all into memory
+for key in client.scan_iter(match="user:*", count=100):
+    print(key, client.get(key))
+```
+### Batch Operations
+```python
+# Set multiple keys efficiently
+items = [("user:1", "John"), ("user:2", "Jane"), ("user:3", "Bob")]
+client.batch_set(items)
+
+# Get multiple keys at once
+result = client.batch_get(["user:1", "user:2", "user:3"])
+```
+### Pub/Sub Messaging
+``` python
+def message_handler(channel, message):
+    print(f"Received on {channel}: {message}")
+
+# Subscribe to a channel
+client.subscribe("notifications", message_handler)
+
+# Publish messages
+client.publish("notifications", "Hello subscribers!")
+```
+### Health Check
+```python
+health = client.health_check()
+if health["status"] == "healthy":
+    print(f"Redis {health['redis_version']} running")
+    print(f"Memory usage: {health['used_memory_human']}")
+    print(f"Connected clients: {health['connected_clients']}")
+```
+### Performance Metrics
+```python
+client.enable_metrics()
+
+# Execute your operations
+for i in range(100):
+    client.set(f"key:{i}", f"value:{i}")
+
+# Get performance statistics
+metrics = client.get_metrics()
+print(f"Average SET time: {metrics['commands']['set']['avg_time_ms']}ms")
+print(f"Total operations: {metrics['commands']['set']['count']}")
+
+client.reset_metrics()  # Clear metrics when needed
+```
+### Decorator Pattern
+```python
+@client.cached(ttl=60)
+def expensive_database_query(user_id):
+    # This will be cached automatically
+    return database.fetch_user(user_id)
+
+@client.retry(max_attempts=3, delay=0.5)
+def unstable_network_call():
+    # Automatically retries up to 3 times on failure
+    return external_api.call()
+```
+### Pipeline with Context Manager
+```python
+# Auto-executes when exiting the context
+with client.pipeline() as pipe:
+    pipe.set("key1", "value1")
+    pipe.set("key2", "value2")
+    pipe.incr("counter")
+```
+### Multiple Operations with mget/mset
+```python
+# Set multiple keys
+client.mset({"user:1": "John", "user:2": "Jane", "user:3": "Bob"})
+
+# Get multiple keys
+users = client.mget(["user:1", "user:2", "user:3"])
+print(users)  # {"user:1": "John", "user:2": "Jane", "user:3": "Bob"}
+```
 ## Shared Instance Pattern
 
 `redis-simplify` does not enforce a Singleton pattern.
@@ -413,6 +594,14 @@ Many projects repeatedly implement:
 | Logging control     | Basic               | Configurable log levels            |
 | Convenience wrapper | No                  | Yes                                |
 | Safe defaults       | No                  | Yes                                |
+| Distributed locks   | Manual (SET NX)     | Built-in with context manager      |
+| Rate limiting       | No                  | Built-in sliding window            |
+| Performance metrics | No                  | Built-in with decorators           |
+| Health checks       | Manual (INFO)       | Built-in `health_check()`          |
+| Cache patterns      | Manual              | `get_or_set()`, `delete_pattern()` |
+| Batch operations    | Manual pipeline     | `batch_get()`, `batch_set()`       |
+| Decorators          | No                  | `@cached`, `@retry`                |
+| Pub/Sub simplified  | Manual              | Callback-based subscription        |
 
 ---
 
