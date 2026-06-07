@@ -1,12 +1,13 @@
 import logging
 from typing import Optional
 
-from redis_simplify.mixins.metrics import MetricsMixin
+
+from redis_simplify.mixins.decorator_metrics import recorded
 
 logger = logging.getLogger('redis_simplify.client')
 
 class HashMixin:
-    @MetricsMixin._recorded
+    @recorded()
     def hset(self, key: str, field: str, value: str) -> int:
         """Define campo em hash"""
         if not self._ensure_connection():
@@ -16,7 +17,7 @@ class HashMixin:
         except Exception as e:
             logger.error(f"Error on hset {key}: {e}")
             return 0
-    @MetricsMixin._recorded
+    @recorded()
     def hget(self, key: str, field: str) -> Optional[str]:
         """Obtém campo de hash"""
         if not self._ensure_connection():
@@ -26,7 +27,7 @@ class HashMixin:
         except Exception as e:
             logger.error(f"Error on hget {key}: {e}")
             return None
-    @MetricsMixin._recorded
+    @recorded()
     def hgetall(self, key: str) -> dict:
         """Obtém todo hash"""
         if not self._ensure_connection():

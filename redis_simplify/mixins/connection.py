@@ -50,6 +50,7 @@ class ConnectionMixin:
 
     def close(self):
         """Fecha conexão"""
+        self.close_pubsubs()
         if self.client:
             self.client.close()
             logger.info("Redis connection closed!")

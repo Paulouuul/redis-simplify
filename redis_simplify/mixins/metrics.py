@@ -1,6 +1,4 @@
 import logging
-import time
-import functools
 from typing import Dict
 from collections import defaultdict
 
@@ -14,29 +12,6 @@ class MetricsMixin:
         self._metrics_enabled = False
         self._metrics = defaultdict(lambda: {"count": 0, "total_time": 0, "errors": 0})
 
-    def _recorded(self, command_name=None):
-        """Decorator para registrar métricas automaticamente"""
-        def decorator(func):
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                if not self._metrics_enabled:
-                    return func(*args, **kwargs)
-                
-                start = time.time()
-                error = False
-                try:
-                    result = func(*args, **kwargs)
-                    return result
-                except Exception as e:
-                    error = True
-                    raise
-                finally:
-                    duration_ms = (time.time() - start) * 1000
-                    cmd = command_name or func.__name__
-                    self._record_metric(cmd, duration_ms, error)
-            return wrapper
-        return decorator
-    
     def enable_metrics(self):
         """Habilita coleta de métricas"""
         self._metrics_enabled = True
@@ -45,8 +20,10 @@ class MetricsMixin:
     def disable_metrics(self):
         """Desabilita coleta de métricas"""
         self._metrics_enabled = False
+        logger.info("Metrics collection disabled")
     
     def _record_metric(self, command: str, duration_ms: float, error: bool = False):
+        """Registra uma métrica (só funciona se enabled)"""
         if not self._metrics_enabled:
             return
         
@@ -54,6 +31,9 @@ class MetricsMixin:
         self._metrics[command]["total_time"] += duration_ms
         if error:
             self._metrics[command]["errors"] += 1
+        
+        # Debug: mostra o que está sendo registrado
+        logger.debug(f"Metric recorded: {command} = {duration_ms:.2f}ms (error={error})")
     
     def get_metrics(self) -> Dict:
         """Retorna métricas coletadas"""

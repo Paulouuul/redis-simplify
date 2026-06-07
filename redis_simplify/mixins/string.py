@@ -1,12 +1,13 @@
 import logging
 from typing import Optional
-from redis_simplify.mixins.metrics import MetricsMixin
+
+from redis_simplify.mixins.decorator_metrics import recorded
 
 logger = logging.getLogger('redis_simplify.client')
 
 class StringMixin:
 
-    @MetricsMixin._recorded
+    @recorded()
     def set(self, key: str, value: str, expire_seconds: Optional[int] = None, 
             nx: bool = False, xx: bool = False) -> bool:
         """Define uma chave"""
@@ -18,7 +19,7 @@ class StringMixin:
         except Exception as e:
             logger.error(f"Set {key}: {e}")
             return False
-    @MetricsMixin._recorded
+    @recorded()
     def get(self, key: str) -> Optional[str]:
         """Obtém valor de uma chave"""
         if not self._ensure_connection():
@@ -28,7 +29,7 @@ class StringMixin:
         except Exception as e:
             logger.error(f"Error on get {key}: {e}")
             return None
-    @MetricsMixin._recorded
+    @recorded()
     def delete(self, *keys: str) -> int:
         """Deleta uma ou mais chaves"""
         if not self._ensure_connection():
@@ -39,7 +40,7 @@ class StringMixin:
             logger.error(f"Error on delete {keys}: {e}")
             return 0
         
-    @MetricsMixin._recorded
+    @recorded()
     def exists(self, key: str) -> bool:
         """Verifica se chave existe"""
         if not self._ensure_connection():
@@ -50,7 +51,7 @@ class StringMixin:
         except Exception as e:
             logger.error(f"Error on exists {key}: {e}")
             return False
-    @MetricsMixin._recorded
+    @recorded()
     def expire(self, key: str, seconds: int) -> bool:
         """Define tempo de expiração"""
         if not self._ensure_connection():
@@ -61,7 +62,7 @@ class StringMixin:
         except Exception as e:
             logger.error(f"Error on expire {key}: {e}")
             return False
-    @MetricsMixin._recorded
+    @recorded()
     def incr(self, key: str) -> int:
         """Incrementa contador"""
         if not self._ensure_connection():
@@ -71,7 +72,7 @@ class StringMixin:
         except Exception as e:
             logger.error(f"Error on incr {key}: {e}")
             return 0
-    @MetricsMixin._recorded
+    @recorded()
     def decr(self, key: str) -> int:
         """Decrementa contador"""
         if not self._ensure_connection():

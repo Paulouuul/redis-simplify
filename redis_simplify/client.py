@@ -22,6 +22,7 @@ class RedisClient(AllMixins):
         health_check_interval: int = 30,
         log_level: Optional[str] = None
     ):
+        super().__init__()
         # Configuração via parâmetros 
         self.host = host
         self.port = port

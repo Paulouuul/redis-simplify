@@ -1,12 +1,13 @@
 import logging
 from typing import List
 
-from redis_simplify.mixins.metrics import MetricsMixin
+
+from redis_simplify.mixins.decorator_metrics import recorded
 
 logger = logging.getLogger('redis_simplify.client')
 
 class ListMixin:
-    @MetricsMixin._recorded
+    @recorded()
     def lpush(self, key: str, *values: str) -> int:
         """Adiciona ao início da lista"""
         if not self._ensure_connection():
@@ -16,7 +17,7 @@ class ListMixin:
         except Exception as e:
             logger.error(f"Error on lpush {key}: {e}")
             return 0
-    @MetricsMixin._recorded
+    @recorded()
     def rpush(self, key: str, *values: str) -> int:
         """Adiciona ao final da lista"""
         if not self._ensure_connection():
@@ -26,7 +27,7 @@ class ListMixin:
         except Exception as e:
             logger.error(f"Error on rpush {key}: {e}")
             return 0
-    @MetricsMixin._recorded
+    @recorded()
     def lrange(self, key: str, start: int, end: int) -> List[str]:
         """Retorna range da lista"""
         if not self._ensure_connection():

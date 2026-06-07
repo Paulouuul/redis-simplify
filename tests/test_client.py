@@ -533,13 +533,13 @@ class TestRedisClientMetrics:
     """Testes de métricas de performance"""
     
     def test_enable_metrics(self, client):
-        """Testa habilitar métricas"""
-        client.enable_metrics()
-        # Métricas devem estar ativas
-        client.get("test:metrics")
+        client.enable_metrics()  # ← PRIMEIRO habilita
+        client.set("test", "value")  # ← DEPOIS executa
+        client.get("test")
         metrics = client.get_metrics()
         assert metrics["enabled"] is True
-        client.disable_metrics()
+        assert "set" in metrics["commands"]  # ← deve ter métrica do set
+        assert "get" in metrics["commands"]  # ← deve ter métrica do get
     
     def test_get_metrics(self, client):
         """Testa coleta de métricas"""
