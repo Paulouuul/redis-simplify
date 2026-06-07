@@ -609,8 +609,24 @@ Many projects repeatedly implement:
 
 The project includes automated tests built with `pytest`.
 
+### Run all tests
 ```bash
-pytest
+pytest tests/ -v
+```
+
+### Run specific test categories
+```bash
+# Run only string operations tests
+pytest tests/test_client.py::TestRedisClientString -v
+
+# Run only JSON tests
+pytest tests/test_client.py::TestRedisClientJSON -v
+
+# Run only metrics tests
+pytest tests/test_client.py::TestRedisClientMetrics -v
+
+# Run only lock tests
+pytest tests/test_client.py::TestRedisClientLock -v
 ```
 
 ---
