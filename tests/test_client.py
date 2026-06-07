@@ -354,7 +354,51 @@ class TestRedisClientRateLimit:
         key = "test:reset"
         reset_time = client.rate_limit_reset(key, 60)
         assert 0 <= reset_time <= 60
-
+    def test_run_with_rate_limit_returns_none_when_exceeded(self, client):
+        """Testa que run_with_rate_limit retorna None quando excede limite"""
+        # Usa 3 requisições
+        for i in range(3):
+            result = client.run_with_rate_limit(
+                client.set, "test:rate:exceed", 3, 60,
+                f"key{i}", f"value{i}"
+            )
+            assert result is True
+        
+        # Quarta deve retornar None
+        result = client.run_with_rate_limit(
+            client.set, "test:rate:exceed", 3, 60,
+            "key4", "value4"
+        )
+        assert result is None
+        
+        # Limpa
+        for i in range(4):
+            client.delete(f"key{i}")
+    
+    def test_run_with_rate_limit_works_with_get(self, client):
+        """Testa run_with_rate_limit com operação GET"""
+        client.set("test:rate:get", "hello")
+        
+        result = client.run_with_rate_limit(
+            client.get, "test:rate:get", 3, 60,
+            "test:rate:get"
+        )
+        assert result == "hello"
+        
+        client.delete("test:rate:get")
+    
+    def test_run_with_rate_limit_works_with_sadd(self, client):
+        """Testa run_with_rate_limit com operação SADD"""
+        result = client.run_with_rate_limit(
+            client.sadd, "test:rate:sadd", 3, 60,
+            "set", "a", "b", "c"
+        )
+        assert result == 3  # SADD retorna número de membros adicionados
+        
+        members = client.smembers("set")
+        assert members == {"a", "b", "c"}
+        
+        client.delete("set")
 
 
 class TestRedisClientLock:
