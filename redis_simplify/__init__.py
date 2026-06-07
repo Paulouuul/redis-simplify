@@ -1,5 +1,4 @@
 """redis-simplify - Wrapper de conveniência para Redis"""
-
 from .client import RedisClient
 
 def _get_version():
