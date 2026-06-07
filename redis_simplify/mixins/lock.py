@@ -1,4 +1,5 @@
 import logging
+import traceback
 import uuid
 import time
 from typing import Optional
@@ -42,10 +43,14 @@ class RedisLock:
             
             time.sleep(0.1)
     
-    def __exit__(self, *args):
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            logger.error(f"Error on lock: {exc_type.__name__}: {exc_val}")
+            logger.error(f"Traceback: {''.join(traceback.format_tb(exc_tb))}")
+        
+        # Libera o lock normalmente
         if not self.client._ensure_connection():
             return
-        # Release apenas se o token for o mesmo (Lua script para atomicidade)
         script = """
         if redis.call("get", KEYS[1]) == ARGV[1] then
             return redis.call("del", KEYS[1])

@@ -1,9 +1,10 @@
 #redis_simplify/client
+import traceback
+
 import redis
 import logging
 import warnings
-from typing import Optional, Set, List
-import json
+from typing import Any, Optional, Callable
 from redis_simplify.mixins import AllMixins
 logger = logging.getLogger('redis_simplify.client')
 logger.addHandler(logging.NullHandler())
@@ -63,8 +64,42 @@ class RedisClient(AllMixins):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type:
+            logger.error(f"Error on block with: {exc_type.__name__}: {exc_val}")
+            logger.error(f"Traceback: {''.join(traceback.format_tb(exc_tb))}")
         self.close()
+    
+    def run_with_rate_limit(self, operation: Callable, rate_key: str, 
+                        max_requests: int, window_seconds: int,
+                        *args, **kwargs) -> Any:
+        """
+        Executa uma operação com rate limit.
         
+        Args:
+            operation: A operação a ser executada (ex: self.set, self.get, self.sadd)
+            rate_key: Chave para o rate limit
+            max_requests: Número máximo de requisições permitidas
+            window_seconds: Janela de tempo em segundos
+            *args, **kwargs: Argumentos para a operação
+        
+        Returns:
+            Resultado da operação ou None se rate limit excedeu
+        
+        Exemplos:
+            # Set com rate limit
+            success = redis.with_rate_limit(redis.set, "api:user", 10, 60, "key", "value")
+            
+            # Get com rate limit
+            data = redis.with_rate_limit(redis.get, "api:user", 10, 60, "key")
+            
+            # Sadd com rate limit
+            count = redis.with_rate_limit(redis.sadd, "api:user", 10, 60, "set", "a", "b")
+        """
+        if not self.rate_limit_check(rate_key, max_requests, window_seconds):
+            logger.warning(f"Rate limit exceeded for {rate_key}")
+            return None
+        
+        return operation(*args, **kwargs)
     def __getattr__(self, name):
         if hasattr(self.client, name):
             warnings.warn(

@@ -406,8 +406,8 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `set_log_level(level)`                   | Change log level at runtime|
 
 ---
-
-## Pipeline Example
+## Examples
+### Pipeline Example
 
 ```python
 pipe = client.pipeline()
@@ -420,7 +420,7 @@ pipe.execute()
 
 ---
 
-## SCAN Example
+### SCAN Example
 
 ```python
 cursor = 0
@@ -439,9 +439,9 @@ while True:
 ```
 
 ---
-## Advanced Examples
+### Advanced Examples
 
-### Distributed Lock
+#### Distributed Lock
 
 ```python
 # Ensure only one instance executes a critical section
@@ -449,7 +449,7 @@ with client.lock("payment_processing", timeout=10):
     process_payment()
     # Lock automatically released after the block
 ```
-### Rate Limiting
+#### Rate Limiting
 ```python
 # Allow 10 requests per minute per user
 if client.rate_limit_check(f"api:user:{user_id}", max_requests=10, window_seconds=60):
@@ -457,7 +457,7 @@ if client.rate_limit_check(f"api:user:{user_id}", max_requests=10, window_second
 else:
     return {"error": "Rate limit exceeded"}, 429
 ```
-### Cache Pattern (Get or Set)
+#### Cache Pattern (Get or Set)
 
 ```python
 def get_user_profile(user_id):
@@ -468,18 +468,18 @@ def get_user_profile(user_id):
         ttl=300  # 5 minutes
     )
 ```
-### Delete Pattern
+#### Delete Pattern
 ```python
 # Delete all session keys for a user
 client.delete_pattern("session:user:123:*")
 ```
-### SCAN Iterator (Memory Efficient)
+#### SCAN Iterator (Memory Efficient)
 ```python
 # Iterate through keys without loading all into memory
 for key in client.scan_iter(match="user:*", count=100):
     print(key, client.get(key))
 ```
-### Batch Operations
+#### Batch Operations
 ```python
 # Set multiple keys efficiently
 items = [("user:1", "John"), ("user:2", "Jane"), ("user:3", "Bob")]
@@ -488,7 +488,7 @@ client.batch_set(items)
 # Get multiple keys at once
 result = client.batch_get(["user:1", "user:2", "user:3"])
 ```
-### Pub/Sub Messaging
+#### Pub/Sub Messaging
 ``` python
 def message_handler(channel, message):
     print(f"Received on {channel}: {message}")
@@ -507,7 +507,7 @@ if health["status"] == "healthy":
     print(f"Memory usage: {health['used_memory_human']}")
     print(f"Connected clients: {health['connected_clients']}")
 ```
-### Performance Metrics
+#### Performance Metrics
 ```python
 client.enable_metrics()
 
@@ -522,7 +522,7 @@ print(f"Total operations: {metrics['commands']['set']['count']}")
 
 client.reset_metrics()  # Clear metrics when needed
 ```
-### Decorator Pattern
+#### Decorator Pattern
 ```python
 @client.cached(ttl=60)
 def expensive_database_query(user_id):
@@ -534,7 +534,7 @@ def unstable_network_call():
     # Automatically retries up to 3 times on failure
     return external_api.call()
 ```
-### Pipeline with Context Manager
+#### Pipeline with Context Manager
 ```python
 # Auto-executes when exiting the context
 with client.pipeline() as pipe:
@@ -542,7 +542,7 @@ with client.pipeline() as pipe:
     pipe.set("key2", "value2")
     pipe.incr("counter")
 ```
-### Multiple Operations with mget/mset
+#### Multiple Operations with mget/mset
 ```python
 # Set multiple keys
 client.mset({"user:1": "John", "user:2": "Jane", "user:3": "Bob"})
@@ -551,6 +551,25 @@ client.mset({"user:1": "John", "user:2": "Jane", "user:3": "Bob"})
 users = client.mget(["user:1", "user:2", "user:3"])
 print(users)  # {"user:1": "John", "user:2": "Jane", "user:3": "Bob"}
 ```
+
+#### Rate Limiting
+
+##### Manual check
+```python
+if client.rate_limit_check(f"api:user:{user_id}", 10, 60):
+    data = client.get(f"user:{user_id}")
+```
+
+#### Automatic with run_with_rate_limit (simpler!)
+```python
+data = client.run_with_rate_limit(
+    client.get, f"api:user:{user_id}", 10, 60,
+    f"user:{user_id}"
+)
+if data is None:
+    return {"error": "Rate limit exceeded"}, 429
+```
+
 ## Shared Instance Pattern
 
 `redis-simplify` does not enforce a Singleton pattern.
