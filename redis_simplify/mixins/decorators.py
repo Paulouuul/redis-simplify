@@ -1,8 +1,7 @@
 import functools
 import time
 import logging
-import json  # ← Adicionar este import
-from typing import Callable, Optional
+from typing import Callable
 
 logger = logging.getLogger('redis_simplify.client')
 

@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 import redis
 
 logger = logging.getLogger('redis_simplify.client')
