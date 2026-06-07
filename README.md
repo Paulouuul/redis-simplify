@@ -351,6 +351,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `rate_limit_check(key, max_requests, window_seconds)`   | Check if action is allowed        |
 | `rate_limit_remaining(key, max_requests, window_seconds)` | Get remaining requests          |
 | `rate_limit_reset(key, window_seconds)`                 | Get seconds until reset           |
+| `run_with_rate_limit(operation, rate_key, max_requests, window_seconds, *args, **kwargs)` | Execute operation with automatic rate limit |
 
 ### Distributed Lock
 | Method                                      | Description                         |
