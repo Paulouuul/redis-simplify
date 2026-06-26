@@ -21,6 +21,7 @@ class RedisLock:
         self.timeout = timeout
         self.blocking_timeout = blocking_timeout
         self.token = None
+        self.acquired = False
     
     def __enter__(self):
         self.acquire()
@@ -33,6 +34,7 @@ class RedisLock:
         while True:
             self.token = str(uuid.uuid4())
             if self.client.set(self.name, self.token, self.timeout, nx=True):
+                self.acquired = True
                 return True
             
             if self.blocking_timeout is None:
@@ -47,10 +49,11 @@ class RedisLock:
         if exc_type:
             logger.error(f"Error on lock: {exc_type.__name__}: {exc_val}")
             logger.error(f"Traceback: {''.join(traceback.format_tb(exc_tb))}")
-        
-        # Libera o lock normalmente
+        if not self.acquired:
+            return False
+
         if not self.client._ensure_connection():
-            return
+            return False
         script = """
         if redis.call("get", KEYS[1]) == ARGV[1] then
             return redis.call("del", KEYS[1])
@@ -58,4 +61,10 @@ class RedisLock:
             return 0
         end
         """
-        self.client.client.eval(script, 1, self.name, self.token)
+        try:
+            self.client.client.eval(script, 1, self.name, self.token)
+        except Exception as e:
+            logger.error(f"Error releasing lock '{self.name}': {e}")
+            return False
+        
+        return None
