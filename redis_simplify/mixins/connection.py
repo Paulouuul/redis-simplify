@@ -16,7 +16,7 @@ class ConnectionMixin:
                 socket_keepalive=self.socket_keepalive,
                 health_check_interval=self.health_check_interval
             )
-                # Testa conexão
+            # Testa conexão
             self.client.ping()
             logger.info(f"RedisClient connected: {self.host}:{self.port}")
         except Exception as e:
