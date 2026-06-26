@@ -17,12 +17,14 @@ class AdminMixin:
             return 0, []
         
     @recorded()
-    def flush_all(self):
+    def flushall(self):
         """Limpa tudo (CUIDADO: apenas para testes!)"""
         if not self._ensure_connection():
-            return
+            return False
         try:
             self.client.flushall()
             logger.warning("Redis flushall executed!")
+            return True
         except Exception as e:
             logger.error(f"Error on flushall: {e}")
+            return False
