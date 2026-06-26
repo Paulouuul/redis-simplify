@@ -16,6 +16,9 @@ class BatchMixin:
         
         try:
             pipe = self.pipeline()
+            if pipe is None:
+                logger.error("Failed to create pipeline")
+                return [None] * len(keys)
             for key in keys:
                 pipe.get(key)
             return pipe.execute()
@@ -33,6 +36,9 @@ class BatchMixin:
         
         try:
             pipe = self.pipeline()
+            if pipe is None:
+                logger.error("Failed to create pipeline")
+                return False
             for key, value in items:
                 if expire_seconds:
                     pipe.setex(key, expire_seconds, value)
@@ -54,6 +60,9 @@ class BatchMixin:
         
         try:
             pipe = self.pipeline()
+            if pipe is None:
+                logger.error("Failed to create pipeline")
+                return 0
             for key in keys:
                 pipe.delete(key)
             results = pipe.execute()
