@@ -14,6 +14,6 @@ def client():
 @pytest.fixture
 def clean_client(client):
     """Limpa o banco antes e depois de cada teste"""
-    client.flush_all()
+    client.flushall()
     yield client
-    client.flush_all()
+    client.flushall()

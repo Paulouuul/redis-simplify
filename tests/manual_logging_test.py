@@ -31,7 +31,7 @@ def test_manual_logging():
 
     print("\n=== TESTE COM WARNING ===\n")
     client_warning = RedisClient(host="localhost", port=6379, db=9, log_level="WARNING")
-    client_warning.flush_all()  # Deve mostrar warning
+    client_warning.flushall()  # Deve mostrar warning
     client_warning.close()
 
 if __name__ == "__main__":

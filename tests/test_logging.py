@@ -136,8 +136,8 @@ class TestRedisClientLogging:
         
         caplog.clear()
         
-        # flush_all gera warning
-        client.flush_all()
+        # flushall gera warning
+        client.flushall()
         
         # Deve ter pelo menos uma mensagem WARNING
         warning_messages = [r for r in caplog.records if r.levelno == logging.WARNING]
