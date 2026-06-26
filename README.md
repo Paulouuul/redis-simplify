@@ -402,7 +402,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `ping()`                                 | Verify connectivity        |
 | `pipeline()`                             | Create a Redis pipeline    |
 | `scan(cursor=0, match=None, count=None)` | Iterate keys using SCAN    |
-| `flush_all()`                            | Remove all Redis databases |
+| `flushall()`                             | Remove all Redis databases |
 | `close()`                                | Close the connection       |
 | `set_log_level(level)`                   | Change log level at runtime|
 
