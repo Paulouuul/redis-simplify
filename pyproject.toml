@@ -10,6 +10,10 @@ readme = "README.md"
 authors = [
     {name = "Paulo Ricardo Tebet Lyrio", email = "tebetpaulo91@yahoo.com"}
 ]
+
+authors-names = ["Paulo Ricardo Tebet Lyrio"]
+authors-emails = ["tebetpaulo91@yahoo.com"]
+
 license = {text = "MIT"}
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -21,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "redis>=4.0.0"
