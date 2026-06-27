@@ -27,6 +27,7 @@ Stop writing boilerplate. Start building faster.
 | No distributed locks | Built-in lock **context** manager |
 |  No rate limiting | Sliding window rate limiter |
 |  No async flush | Non-blocking flush operations |
+| No fallback control | Global, per-method, and context-based fallback |
 
 **Stop fighting Redis. Start shipping.**
 
@@ -37,6 +38,7 @@ Stop writing boilerplate. Start building faster.
 ### Core Capabilities
 - **Explicit configuration** — `host`, `port`, `password`, `db`
 - **URL-based configuration** — `from_url()` for 12-factor apps
+* **Fallback control** — Global, per-method, and context-based
 - **Automatic reconnection** — Self-healing connections
 - **Centralized logging** — Configurable log levels
 - **Safe fallback values** — Never crash on Redis errors
@@ -52,6 +54,7 @@ Stop writing boilerplate. Start building faster.
 - **Health checks** — Ready for monitoring
 - **Batch operations** — Pipeline optimizations
 - **Decorators** — `@cached`, `@retry`
+- **Fallback control** — Global, per-method, and context-based fallback handling
 
 ### Data Structures
 - **Strings** — Full string operations
@@ -264,6 +267,18 @@ No manual reconnection logic is required.
 All operations include consistent exception handling and logging.
 
 Instead of propagating Redis exceptions, the wrapper logs errors and returns safe fallback values whenever possible.
+
+### Fallback Control Options
+
+`redis-simplify` provides multiple ways to control fallback behavior:
+
+| Method | Description |
+|--------|-------------|
+| **Global** | `fallback_enabled=True/False` in constructor |
+| **Per-operation** | `with_fallback()`, `without_fallback()` |
+| **Safe shortcuts** | `safe_get()`, `safe_set()` |
+| **Context manager** | `fallback_context()` |
+| **Decorators** | `@with_fallback`, `@no_fallback`, `@fallback_value` |
 
 ### Fallback Values
 
@@ -487,6 +502,21 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `flushall(async_mode=False)`    | Clear all databases (careful!)      |
 
 ---
+
+### Fallback Control
+
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `with_fallback(operation, *args, fallback_value=None)` | Execute operation with fallback |
+| `without_fallback(operation, *args)`        | Execute operation without fallback |
+| `run_with_fallback(operation, *args, default=None)` | Execute with fallback (alias) |
+| `safe_get(key, default=None)`               | Get with fallback (shortcut) |
+| `safe_set(key, value, default=False)`       | Set with fallback (shortcut) |
+| `fallback_context(enabled=True)`            | Context manager for fallback control |
+
+
+---
+
 ## Examples
 
 ### Pipeline Example
@@ -693,6 +723,119 @@ redis_client = RedisClient(
 )
 ```
 
+### Fallback Control
+
+The library provides flexible fallback behavior that can be configured globally, per operation, or through decorators.
+
+#### Global Fallback
+
+Enable or disable fallback behavior for the entire client.
+
+```python
+# Enable global fallback (default)
+client = RedisClient(host="localhost", fallback_enabled=True)
+
+value = client.get("missing_key")
+print(value)  # None
+```
+
+```python
+# Disable global fallback
+client = RedisClient(host="localhost", fallback_enabled=False)
+
+try:
+    value = client.get("missing_key")
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+---
+
+#### Per-operation Fallback
+
+Override the fallback behavior for a single operation.
+
+```python
+# With fallback
+value = client.with_fallback(
+    client.get,
+    "missing_key",
+    fallback_value="default"
+)
+
+print(value)  # "default"
+```
+
+```python
+# Without fallback
+try:
+    value = client.without_fallback(client.get, "missing_key")
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+---
+
+#### Safe Get/Set Shortcuts
+
+Convenience methods for common fallback scenarios.
+
+```python
+# Safe get with default values
+user = client.safe_get("user:123", default={})
+count = client.safe_get("counter", default=0)
+
+# Safe set with fallback
+result = client.safe_set("key", "value", default=False)
+```
+
+---
+
+#### Context Manager
+
+Temporarily override the client's fallback behavior.
+
+```python
+# Temporarily disable fallback
+with client.fallback_context(False):
+    try:
+        value = client.get("critical_key")
+    except Exception:
+        handle_error()
+```
+
+---
+
+#### Decorator-based Fallback
+
+Apply fallback behavior declaratively using decorators.
+
+```python
+from redis_simplify.mixins.decorators import (
+    with_fallback,
+    no_fallback,
+    fallback_value,
+)
+
+@with_fallback(default_return=None)
+def safe_get(key):
+    return client.get(key)
+
+@no_fallback
+def critical_get(key):
+    return client.get(key)
+
+@fallback_value([])
+def safe_get_list(key):
+    return client.get(key)
+```
+
+**Behavior:**
+
+- `@with_fallback(default_return=value)` — Returns the specified value if the operation fails.
+- `@no_fallback` — Disables fallback and propagates exceptions.
+- `@fallback_value(value)` — Returns the provided fallback value when an exception occurs.
+
 ---
 
 ## Why redis-simplify?
@@ -732,6 +875,9 @@ Many projects repeatedly implement:
 | Memory monitoring   | Manual              | `memory_usage()`                   |
 | Info sections       | No                  | `info_sections()`                  |
 | Async flush         | Manual              | `flushdb(async_mode=True)`         |
+| Fallback control    | Manual (try/except) | Built-in global, per-method, context |
+| Safe operations     | Manual              | `safe_get()`, `safe_set()`         |
+| Decorators          | No                  | `@cached`, `@retry`, `@with_fallback` |
 
 ---
 
@@ -1336,6 +1482,21 @@ This project is licensed under the MIT License.
 **Paulo Ricardo Tebet Lyrio**
 
 GitHub: https://github.com/Paulouuul/redis-simplify
+
+
+## Why redis-simplify?
+
+Many projects repeatedly implement:
+
+* Redis connection setup
+* Health checks
+* Reconnection logic
+* JSON serialization and deserialization
+* Logging
+* Defensive exception handling
+* Fallback control with try/except blocks
+
+`redis-simplify` centralizes these concerns into a small reusable wrapper while preserving the familiar Redis workflow provided by `redis-py`.
 
 ## 💖 Support the Project
 
