@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redis-simplify"
-version = "3.0.2"
+version = "3.0.1"
 description = "Production-ready Redis wrapper with automatic reconnection, JSON helpers, and enterprise features"
 readme = "README.md"
 authors = [
-    "Paulo Ricardo Tebet Lyrio <tebetpaulo91@yahoo.com>"
+    {name = "Paulo Ricardo Tebet Lyrio", email = "tebetpaulo91@yahoo.com"}
 ]
 
 license = {text = "MIT"}
