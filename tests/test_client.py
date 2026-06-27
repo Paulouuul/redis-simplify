@@ -19,35 +19,12 @@ class TestRedisClientString:
         time.sleep(1.1)
         assert client.get("test:expire") is None
     
-    def test_delete(self, client):
-        """Testa delete"""
-        client.set("test:delete", "value")
-        assert client.exists("test:delete") is True
-        client.delete("test:delete")
-        assert client.exists("test:delete") is False
-    
-    def test_exists(self, client):
-        """Testa exists"""
-        client.set("test:exists", "value")
-        assert client.exists("test:exists") is True
-        client.delete("test:exists")
-        assert client.exists("test:exists") is False
-    
     def test_incr_and_decr(self, client):
         """Testa incremento e decremento"""
         client.set("test:counter", 10)
         assert client.incr("test:counter") == 11
         assert client.decr("test:counter") == 10
         client.delete("test:counter")
-    
-    def test_expire(self, client):
-        """Testa expire separadamente"""
-        import time
-        client.set("test:expire2", "value")
-        client.expire("test:expire2", 1)
-        assert client.get("test:expire2") == "value"
-        time.sleep(1.1)
-        assert client.get("test:expire2") is None
 
 
 class TestRedisClientJSON:
@@ -828,3 +805,160 @@ class TestRedisClientPubSub:
             time.sleep(0.1)
             
             assert client.exists('test:flushall:async') is False
+
+
+    class TestRedisClientKeyMixin:
+        """Testes específicos para operações de chaves (KeyMixin)"""
+        
+        def test_delete(self, client):
+            """Testa delete"""
+            client.set("test:delete", "value")
+            assert client.exists("test:delete") is True
+            result = client.delete("test:delete")
+            assert result == 1  # Retorna número de chaves deletadas
+            assert client.exists("test:delete") is False
+        
+        def test_delete_multiple(self, client):
+            """Testa delete de múltiplas chaves"""
+            client.set("test:del:1", "a")
+            client.set("test:del:2", "b")
+            client.set("test:del:3", "c")
+            
+            result = client.delete("test:del:1", "test:del:2")
+            assert result == 2
+            assert client.exists("test:del:1") is False
+            assert client.exists("test:del:2") is False
+            assert client.exists("test:del:3") is True
+            
+            client.delete("test:del:3")
+        
+        def test_exists(self, client):
+            """Testa exists"""
+            client.set("test:exists", "value")
+            assert client.exists("test:exists") is True
+            client.delete("test:exists")
+            assert client.exists("test:exists") is False
+        
+        def test_expire(self, client):
+            """Testa expire"""
+            import time
+            client.set("test:expire", "value")
+            assert client.expire("test:expire", 1) is True
+            assert client.get("test:expire") == "value"
+            time.sleep(1.1)
+            assert client.get("test:expire") is None
+        
+        def test_expireat(self, client):
+            """Testa expireat"""
+            import time
+            client.set("test:expireat", "value")
+            timestamp = int(time.time()) + 1
+            assert client.expireat("test:expireat", timestamp) is True
+            assert client.get("test:expireat") == "value"
+            time.sleep(1.1)
+            assert client.get("test:expireat") is None
+        
+        def test_ttl(self, client):
+            """Testa ttl"""
+            client.set("test:ttl", "value")
+            client.expire("test:ttl", 10)
+            ttl = client.ttl("test:ttl")
+            assert 0 < ttl <= 10
+            
+            # Chave sem expiração
+            client.set("test:ttl:no", "value")
+            assert client.ttl("test:ttl:no") == -1
+            
+            # Chave inexistente
+            assert client.ttl("test:ttl:inexistente") == -2
+            
+            client.delete("test:ttl", "test:ttl:no")
+        
+        def test_pttl(self, client):
+            """Testa pttl (milissegundos)"""
+            client.set("test:pttl", "value")
+            client.expire("test:pttl", 10)
+            pttl = client.pttl("test:pttl")
+            assert 0 < pttl <= 10000
+            client.delete("test:pttl")
+        
+        def test_persist(self, client):
+            """Testa persist (remover expiração)"""
+            client.set("test:persist", "value")
+            client.expire("test:persist", 10)
+            assert client.ttl("test:persist") > 0
+            
+            assert client.persist("test:persist") is True
+            assert client.ttl("test:persist") == -1
+            
+            client.delete("test:persist")
+        
+        def test_rename(self, client):
+            """Testa rename"""
+            client.set("test:old", "value")
+            assert client.rename("test:old", "test:new") is True
+            assert client.exists("test:old") is False
+            assert client.get("test:new") == "value"
+            client.delete("test:new")
+        
+        def test_renamenx(self, client):
+            """Testa renamenx (rename if not exists)"""
+            client.set("test:old", "value")
+            client.set("test:existing", "existing")
+            
+            # Deve falhar porque test:existing existe
+            assert client.renamenx("test:old", "test:existing") is False
+            
+            # Deve funcionar com nome novo
+            assert client.renamenx("test:old", "test:new") is True
+            assert client.get("test:new") == "value"
+            
+            client.delete("test:existing", "test:new")
+        
+        def test_type(self, client):
+            """Testa type"""
+            client.set("test:type:string", "value")
+            assert client.type("test:type:string") == "string"
+            
+            client.hset("test:type:hash", "field", "value")
+            assert client.type("test:type:hash") == "hash"
+            
+            client.sadd("test:type:set", "member")
+            assert client.type("test:type:set") == "set"
+            
+            client.delete("test:type:string", "test:type:hash", "test:type:set")
+        
+        def test_keys(self, client):
+            """Testa keys (com cuidado)"""
+            client.set("test:keys:1", "a")
+            client.set("test:keys:2", "b")
+            client.set("test:keys:3", "c")
+            
+            keys = client.keys("test:keys:*")
+            assert len(keys) == 3
+            assert all(key.startswith("test:keys:") for key in keys)
+            
+            client.delete("test:keys:1", "test:keys:2", "test:keys:3")
+        
+        def test_scan_iter(self, client):
+            """Testa scan_iter"""
+            for i in range(10):
+                client.set(f"test:scaniter:{i}", f"value{i}")
+            
+            keys = list(client.scan_iter(match="test:scaniter:*", count=3))
+            assert len(keys) == 10
+            assert all(key.startswith("test:scaniter:") for key in keys)
+            
+            for i in range(10):
+                client.delete(f"test:scaniter:{i}")
+        
+        def test_randomkey(self, client):
+            """Testa randomkey"""
+            client.set("test:random:1", "a")
+            client.set("test:random:2", "b")
+            
+            key = client.randomkey()
+            assert key is not None
+            assert key.startswith("test:random:")
+            
+            client.delete("test:random:1", "test:random:2")
