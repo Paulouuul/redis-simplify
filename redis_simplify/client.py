@@ -1,11 +1,11 @@
-#redis_simplify/client
+# redis_simplify/client.py
 import traceback
-
 import redis
 import logging
 import warnings
 from typing import Any, Optional, Callable
 from redis_simplify.mixins import AllMixins
+
 logger = logging.getLogger('redis_simplify.client')
 logger.addHandler(logging.NullHandler())
 
@@ -21,6 +21,7 @@ class RedisClient(AllMixins):
                  socket_keepalive: bool = True,
                  health_check_interval: int = 30,
                  log_level: Optional[str] = None,
+                 fallback_enabled: bool = True,
                  **kwargs):
         super().__init__(**kwargs)
         self.host = host
@@ -33,20 +34,104 @@ class RedisClient(AllMixins):
         self.extra_kwargs = kwargs
         self._url = None
         self.client = None
+        self.fallback_enabled = fallback_enabled
         
         if log_level:
             self._configure_logging(log_level)
         
-        self._connect()  # Conecta automaticamente
+        self._connect()
 
-
+    # ============ MÉTODOS AUXILIARES PARA FALLBACK ============
     
-
+    def with_fallback(self, operation: Callable, *args, fallback_value: Any = None, **kwargs) -> Any:
+        """
+        Executa uma operação COM fallback.
+        """
+        try:
+            result = operation(*args, **kwargs)
+            # Se o resultado for None e for uma operação de get, consideramos como fallback
+            if result is None and operation.__name__ in ['get', 'get_json', 'hget']:
+                return fallback_value
+            return result
+        except Exception as e:
+            logger.error(f"Operation {operation.__name__} failed: {e}")
+            return fallback_value
+    
+    def without_fallback(self, operation: Callable, *args, **kwargs) -> Any:
+        """
+        Executa uma operação SEM fallback (levanta exceção em caso de erro).
+        """
+        try:
+            result = operation(*args, **kwargs)
+            # Se o resultado for None e for uma operação de get, levantamos exceção
+            if result is None and operation.__name__ in ['get', 'get_json', 'hget']:
+                raise ValueError(f"Key not found for {operation.__name__}")
+            return result
+        except Exception as e:
+            # Se já for uma exceção, relança
+            raise
+    
+    def with_fallback_context(self, enabled: bool = True):
+        """
+        Context manager para controlar fallback temporariamente.
+        """
+        class FallbackContext:
+            def __init__(self, obj, enabled):
+                self.obj = obj
+                self.enabled = enabled
+                self.original = None
+            
+            def __enter__(self):
+                self.original = getattr(self.obj, 'fallback_enabled', True)
+                self.obj.fallback_enabled = self.enabled
+                return self.obj
+            
+            def __exit__(self, *args):
+                self.obj.fallback_enabled = self.original
+        
+        return FallbackContext(self, enabled)
+    
+    def run_with_fallback(self, operation: Callable, *args, default: Any = None, **kwargs) -> Any:
+        """
+        Executa uma operação com fallback.
+        """
+        return self.with_fallback(operation, *args, fallback_value=default, **kwargs)
+    
+    def safe_get(self, key: str, default: Any = None) -> Any:
+        """
+        Get com fallback (atalho).
+        """
+        try:
+            # Verifica se o cliente está disponível
+            if not self.client:
+                logger.error("Redis client not available")
+                return default
+            return self.with_fallback(self.get, key, fallback_value=default)
+        except Exception as e:
+            logger.error(f"safe_set error: {e}")
+            return default
+    
+    def safe_set(self, key: str, value: str, default: bool = False, **kwargs) -> bool:
+        """
+        Set com fallback (atalho).
+        """
+        try:
+            # Verifica se o cliente está disponível
+            if not self.client:
+                logger.error("Redis client not available")
+                return default
+            result = self.set(key, value, **kwargs)
+            return result if result is not None else default
+        except Exception as e:
+            logger.error(f"safe_set error: {e}")
+            return default
+    
+    # ============ MÉTODOS EXISTENTES ============
+    
     def _configure_logging(self, log_level: str):
         """Configura o nível de logging do cliente"""
         level = getattr(logging, log_level.upper(), logging.INFO)
         logger.setLevel(level)
-        
         logger.debug(f"Log level set to {log_level.upper()}")
 
     def set_log_level(self, level: str):
@@ -102,7 +187,13 @@ class RedisClient(AllMixins):
             return None
         
         return operation(*args, **kwargs)
+    
     def __getattr__(self, name):
+        """
+        Redireciona chamadas para métodos Redis nativos.
+        Apenas para métodos que não existem no wrapper.
+        """
+        # Verifica se o método existe no cliente Redis
         if hasattr(self.client, name):
             warnings.warn(
                 f"Using native Redis method '{name}'. ",
@@ -110,4 +201,6 @@ class RedisClient(AllMixins):
                 stacklevel=2
             )
             return getattr(self.client, name)
+        
+        # Se não existir, levanta AttributeError
         raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")

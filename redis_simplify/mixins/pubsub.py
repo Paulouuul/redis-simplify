@@ -1,9 +1,11 @@
 import logging
 import threading
 import json
+import redis
 from typing import Callable
 
 from redis_simplify.mixins.decorator_metrics import recorded
+from redis_simplify.mixins.decorators import with_fallback
 
 logger = logging.getLogger('redis_simplify.client')
 
@@ -19,25 +21,23 @@ class PubSubMixin:
         super().__init__(*args, **kwargs)
 
     @recorded()
+    @with_fallback(default_return=0)
     def publish(self, channel: str, message: str) -> int:
         """Publica mensagem em canal"""
         if not self._ensure_connection():
-            return 0
-        try:
-            return self.client.publish(channel, message)
-        except Exception as e:
-            logger.error(f"Error on publish {channel}: {e}")
-            return 0
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.publish(channel, message)
     
+    @with_fallback(default_return=0)
     def publish_json(self, channel: str, data: dict) -> int:
         """Publica JSON em canal"""
         return self.publish(channel, json.dumps(data))
     
+    @with_fallback(default_return=None)
     def subscribe(self, channel: str, callback: Callable, pattern: bool = False):
         """Inscreve em canal com callback"""
         if not self._ensure_connection():
-            logger.error("Cannot subscribe: no Redis connection")
-            return None
+            raise redis.ConnectionError("Redis connection failed")
         
         pubsub = self.client.pubsub()
         

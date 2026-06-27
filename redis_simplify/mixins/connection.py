@@ -1,12 +1,13 @@
 import logging
+import redis
 from urllib.parse import urlparse
 from typing import Optional
-import redis
+
+from redis_simplify.mixins.decorators import with_fallback
 
 logger = logging.getLogger('redis_simplify.client')
 
 class ConnectionMixin:
-
     
     def _connect(self):
         """Estabelece conexão com Redis (síncrona)"""
@@ -44,6 +45,7 @@ class ConnectionMixin:
             logger.error(f"Redis connection error: {e}")
             self.client = None
     
+    @with_fallback(default_return=None)
     def update_url(self, url: str, **kwargs):
         """
         Reconfigura a conexão usando URL.
@@ -55,23 +57,17 @@ class ConnectionMixin:
         Returns:
             self (para encadeamento)
         """
-        try:
-            # Atualiza parâmetros extras se fornecidos
-            if kwargs:
-                self.extra_kwargs.update(kwargs)
-            
-            # Guarda URL
-            self._url = url
-            
-            # Reconecta usando a URL
-            self._connect()
-            
-            return self
-        except Exception as e:
-            logger.error(f"Redis from_url error: {e}")
-            self.client = None
-            return self
+        # Atualiza parâmetros extras se fornecidos
+        if kwargs:
+            self.extra_kwargs.update(kwargs)
         
+        # Guarda URL
+        self._url = url
+        
+        # Reconecta usando a URL
+        self._connect()
+        
+        return self
 
     @classmethod
     def from_url(cls, url: str, 
@@ -79,6 +75,7 @@ class ConnectionMixin:
                  socket_keepalive: bool = True,
                  health_check_interval: int = 30,
                  log_level: Optional[str] = None,
+                 fallback_enabled: bool = True,
                  **kwargs):
         """
         Cria uma instância do RedisClient a partir de uma URL.
@@ -89,6 +86,7 @@ class ConnectionMixin:
             socket_keepalive: Manter socket vivo
             health_check_interval: Intervalo de health check
             log_level: Nível de logging
+            fallback_enabled: Se True, fallback ativado; Se False, levanta exceções
             **kwargs: Parâmetros adicionais para o redis
         
         Returns:
@@ -116,17 +114,17 @@ class ConnectionMixin:
             socket_keepalive=socket_keepalive,
             health_check_interval=health_check_interval,
             log_level=log_level,
+            fallback_enabled=fallback_enabled,  # ← VÍRGULA ADICIONADA
             **kwargs
         )
         
-        # Guarda URL (__init__ já conectou, mas força reconexão com URL)
+        # Guarda URL e reconecta
         instance._url = url
-        instance._connect()  # CONECTA
+        instance._connect()
         
         return instance
-    
 
-
+    @with_fallback(default_return=False)
     def _ensure_connection(self) -> bool:
         """Verifica conexão e tenta reconectar se necessário"""
         if self.client:
@@ -138,22 +136,20 @@ class ConnectionMixin:
         
         self._connect()
         return self.client is not None
-    
 
+    @with_fallback(default_return=False)
     def ping(self) -> bool:
         """Testa conectividade"""
         if not self._ensure_connection():
             return False
-        try:
-            return self.client.ping()
-        except Exception as e:
-            logger.error(f"Ping error: {e}")
-            return False
-        
+        return self.client.ping()
 
+    @with_fallback(default_return=None)
     def close(self):
         """Fecha conexão"""
-        self.close_pubsubs()
+        if hasattr(self, 'close_pubsubs'):
+            self.close_pubsubs()
+        
         if self.client:
             self.client.close()
             logger.info("Redis connection closed!")

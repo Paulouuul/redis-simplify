@@ -1,7 +1,10 @@
 # redis_simplify/mixins/key.py
 import logging
+import redis
 from typing import Optional, List, Iterator
+
 from redis_simplify.mixins.decorator_metrics import recorded
+from redis_simplify.mixins.decorators import with_fallback
 
 logger = logging.getLogger('redis_simplify.client')
 
@@ -9,116 +12,87 @@ class KeyMixin:
     """Operações gerais com chaves (keys, exists, ttl, etc.)"""
     
     @recorded()
+    @with_fallback(default_return=0)
     def delete(self, *keys: str) -> int:
         """Deleta uma ou mais chaves"""
         if not self._ensure_connection():
-            return 0
-        try:
-            return self.client.delete(*keys)
-        except Exception as e:
-            logger.error(f"Error on delete {keys}: {e}")
-            return 0
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.delete(*keys)
     
     @recorded()
+    @with_fallback(default_return=False)
     def exists(self, key: str) -> bool:
         """Verifica se chave existe"""
         if not self._ensure_connection():
-            return False
-        try:
-            return bool(self.client.exists(key))
-        except Exception as e:
-            logger.error(f"Error on exists {key}: {e}")
-            return False
+            raise redis.ConnectionError("Redis connection failed")
+        return bool(self.client.exists(key))
     
     @recorded()
+    @with_fallback(default_return=False)
     def expire(self, key: str, seconds: int) -> bool:
         """Define tempo de expiração em segundos"""
         if not self._ensure_connection():
-            return False
-        try:
-            return bool(self.client.expire(key, seconds))
-        except Exception as e:
-            logger.error(f"Error on expire {key}: {e}")
-            return False
+            raise redis.ConnectionError("Redis connection failed")
+        return bool(self.client.expire(key, seconds))
     
     @recorded()
+    @with_fallback(default_return=False)
     def expireat(self, key: str, timestamp: int) -> bool:
         """Define expiração em timestamp Unix"""
         if not self._ensure_connection():
-            return False
-        try:
-            return bool(self.client.expireat(key, timestamp))
-        except Exception as e:
-            logger.error(f"Error on expireat {key}: {e}")
-            return False
+            raise redis.ConnectionError("Redis connection failed")
+        return bool(self.client.expireat(key, timestamp))
     
     @recorded()
+    @with_fallback(default_return=-2)
     def ttl(self, key: str) -> int:
         """Retorna tempo restante de expiração em segundos (-1 = sem expiração, -2 = não existe)"""
         if not self._ensure_connection():
-            return -2
-        try:
-            return self.client.ttl(key)
-        except Exception as e:
-            logger.error(f"Error on ttl {key}: {e}")
-            return -2
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.ttl(key)
     
     @recorded()
+    @with_fallback(default_return=-2)
     def pttl(self, key: str) -> int:
         """Retorna tempo restante de expiração em milissegundos"""
         if not self._ensure_connection():
-            return -2
-        try:
-            return self.client.pttl(key)
-        except Exception as e:
-            logger.error(f"Error on pttl {key}: {e}")
-            return -2
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.pttl(key)
     
     @recorded()
+    @with_fallback(default_return=False)
     def persist(self, key: str) -> bool:
         """Remove expiração da chave"""
         if not self._ensure_connection():
-            return False
-        try:
-            return bool(self.client.persist(key))
-        except Exception as e:
-            logger.error(f"Error on persist {key}: {e}")
-            return False
+            raise redis.ConnectionError("Redis connection failed")
+        return bool(self.client.persist(key))
     
     @recorded()
+    @with_fallback(default_return=False)
     def rename(self, old_key: str, new_key: str) -> bool:
         """Renomeia uma chave"""
         if not self._ensure_connection():
-            return False
-        try:
-            self.client.rename(old_key, new_key)
-            return True
-        except Exception as e:
-            logger.error(f"Error on rename {old_key} to {new_key}: {e}")
-            return False
+            raise redis.ConnectionError("Redis connection failed")
+        self.client.rename(old_key, new_key)
+        return True
     
     @recorded()
+    @with_fallback(default_return=False)
     def renamenx(self, old_key: str, new_key: str) -> bool:
         """Renomeia chave apenas se nova chave não existir"""
         if not self._ensure_connection():
-            return False
-        try:
-            return bool(self.client.renamenx(old_key, new_key))
-        except Exception as e:
-            logger.error(f"Error on renamenx {old_key} to {new_key}: {e}")
-            return False
+            raise redis.ConnectionError("Redis connection failed")
+        return bool(self.client.renamenx(old_key, new_key))
     
     @recorded()
+    @with_fallback(default_return="none")
     def type(self, key: str) -> str:
         """Retorna o tipo da chave (string, hash, list, set, zset, none)"""
         if not self._ensure_connection():
-            return "none"
-        try:
-            return self.client.type(key)
-        except Exception as e:
-            logger.error(f"Error on type {key}: {e}")
-            return "none"
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.type(key)
     
+    @with_fallback(default_return=[])
     def keys(self, pattern: str = "*") -> List[str]:
         """
         Retorna chaves que correspondem ao padrão.
@@ -126,12 +100,8 @@ class KeyMixin:
         Use scan_iter() para produção.
         """
         if not self._ensure_connection():
-            return []
-        try:
-            return self.client.keys(pattern)
-        except Exception as e:
-            logger.error(f"Error on keys {pattern}: {e}")
-            return []
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.keys(pattern)
     
     def scan_iter(self, match: str = None, count: int = 100) -> Iterator[str]:
         """
@@ -143,20 +113,13 @@ class KeyMixin:
                 print(key)
         """
         if not self._ensure_connection():
-            return iter([])
-        try:
-            return self.client.scan_iter(match=match, count=count)
-        except Exception as e:
-            logger.error(f"Error on scan_iter: {e}")
-            return iter([])
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.scan_iter(match=match, count=count)
     
     @recorded()
+    @with_fallback(default_return=None)
     def randomkey(self) -> Optional[str]:
         """Retorna uma chave aleatória do banco"""
         if not self._ensure_connection():
-            return None
-        try:
-            return self.client.randomkey()
-        except Exception as e:
-            logger.error(f"Error on randomkey: {e}")
-            return None
+            raise redis.ConnectionError("Redis connection failed")
+        return self.client.randomkey()

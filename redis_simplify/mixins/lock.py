@@ -2,15 +2,21 @@ import logging
 import traceback
 import uuid
 import time
+import redis
 from typing import Optional
+
+from redis_simplify.mixins.decorators import with_fallback
 
 logger = logging.getLogger('redis_simplify.client')
 
 class LockMixin:
     """Lock distribuído usando Redis"""
     
+    @with_fallback(default_return=None)
     def lock(self, name: str, timeout: int = 10, blocking_timeout: Optional[int] = None):
         """Context manager para lock distribuído"""
+        if not self._ensure_connection():
+            raise redis.ConnectionError("Redis connection failed")
         return RedisLock(self, name, timeout, blocking_timeout)
 
 
@@ -27,9 +33,12 @@ class RedisLock:
         self.acquire()
         return self
     
+    @with_fallback(default_return=False)
     def acquire(self):
+        """Adquire o lock"""
         if not self.client._ensure_connection():
-            raise ConnectionError("Redis not connected")
+            raise redis.ConnectionError("Redis connection failed")
+        
         start = time.time()
         while True:
             self.token = str(uuid.uuid4())
@@ -49,11 +58,15 @@ class RedisLock:
         if exc_type:
             logger.error(f"Error on lock: {exc_type.__name__}: {exc_val}")
             logger.error(f"Traceback: {''.join(traceback.format_tb(exc_tb))}")
+        
         if not self.acquired:
             return False
-
+        
         if not self.client._ensure_connection():
+            logger.error("Redis connection failed while releasing lock")
             return False
+        
+        # Script Lua para liberar o lock de forma segura
         script = """
         if redis.call("get", KEYS[1]) == ARGV[1] then
             return redis.call("del", KEYS[1])
