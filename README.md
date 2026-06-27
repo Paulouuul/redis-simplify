@@ -5,7 +5,6 @@
 [![License](https://img.shields.io/pypi/l/redis-simplify)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![Tests](https://github.com/Paulouuul/redis-simplify/workflows/Tests/badge.svg)](https://github.com/Paulouuul/redis-simplify/actions)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 **Redis made simple, safe, and production-ready.**
 
