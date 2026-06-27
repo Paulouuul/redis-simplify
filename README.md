@@ -15,6 +15,7 @@ A lightweight synchronous convenience wrapper for Redis built on top of **redis-
 ## Features
 
 * Explicit Redis configuration (`host`, `port`, `password`, `db`)
+* **URL-based configuration** via `from_url()`
 * Automatic reconnection when Redis becomes unavailable
 * Centralized logging and error handling
 * JSON helpers for storing Python dictionaries
@@ -31,6 +32,10 @@ A lightweight synchronous convenience wrapper for Redis built on top of **redis-
 * **Health checks** and monitoring
 * **Batch operations** support
 * **Decorators** for caching and retry
+* **Admin & Monitoring** commands (`info`, `slowlog`, `client_list`, `flushdb`, `flushall`)  ← ADICIONAR AQUI
+* **Memory usage monitoring** for keys  ← ADICIONAR AQUI
+* **Info sections** discovery  ← ADICIONAR AQUI
+* **Async flush** support (non-blocking)  ← ADICIONAR AQUI
 * Support for **Sorted Sets**, **Hashes**, **Lists**, **Sets**, **Strings**
 
 ---
@@ -86,6 +91,7 @@ client = RedisClient(
 
 All configuration is explicit via constructor parameters:
 
+## Traditional parameters
 ```python
 from redis_simplify import RedisClient
 
@@ -95,6 +101,15 @@ client = RedisClient(
     password=None,      # Optional
     db=0,               # Default: 0
     log_level=None      # Default: None (inherits from root logger)
+)
+```
+# Or via URL (recommended for 12-factor apps)
+```python
+from redis_simplify import RedisClient
+
+client = RedisClient.from_url(
+    "redis://:password@localhost:6379/0",
+    log_level="INFO"
 )
 ```
 
@@ -406,8 +421,22 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `close()`                                | Close the connection       |
 | `set_log_level(level)`                   | Change log level at runtime|
 
+### Admin & Monitoring
+
+| Method                          | Description                         |
+| ------------------------------- | ----------------------------------- |
+| `info(section=None)`            | Get Redis server information        |
+| `info_sections()`               | List available info sections        |
+| `dbsize()`                      | Get number of keys in current DB    |
+| `memory_usage(key, samples=0)`  | Get memory usage of a key           |
+| `slowlog(count=10)`             | Get slow queries log                |
+| `client_list()`                 | List connected clients              |
+| `flushdb(async_mode=False)`     | Clear current database              |
+| `flushall(async_mode=False)`    | Clear all databases (careful!)      |
+
 ---
 ## Examples
+
 ### Pipeline Example
 
 ```python
@@ -440,6 +469,41 @@ while True:
 ```
 
 ---
+
+### Admin & Monitoring Examples
+
+```python
+# Get all server information
+info = client.info()
+print(f"Redis version: {info['redis_version']}")
+print(f"Memory usage: {info['used_memory_human']}")
+
+# Get specific section
+memory_info = client.info('memory')
+print(f"Memory fragmentation: {memory_info['mem_fragmentation_ratio']}")
+
+# Check available sections
+sections = client.info_sections()
+print(f"Available sections: {sections}")
+
+# Get database size
+total_keys = client.dbsize()
+print(f"Total keys: {total_keys}")
+
+# Check memory usage of a specific key
+usage = client.memory_usage("user:1")
+print(f"Key memory usage: {usage} bytes")
+
+# View slow queries
+slow_commands = client.slowlog(5)
+for cmd in slow_commands:
+    print(f"Slow command: {cmd[3]} took {cmd[1]}ms")
+
+# List connected clients
+clients = client.client_list()
+print(f"Connected clients: {len(clients)}")
+```
+
 ### Advanced Examples
 
 #### Distributed Lock
@@ -613,8 +677,549 @@ Many projects repeatedly implement:
 | Batch operations    | Manual pipeline     | `batch_get()`, `batch_set()`       |
 | Decorators          | No                  | `@cached`, `@retry`                |
 | Pub/Sub simplified  | Manual              | Callback-based subscription        |
+| Memory monitoring   | Manual              | `memory_usage()`                   |
+| Info sections       | No                  | `info_sections()`                  |
+| Async flush         | Manual              | `flushdb(async_mode=True)`         |
 
 ---
+
+## Best Practices
+
+## Use `from_url()` for 12-factor apps
+
+For cloud-native applications, use environment variables for configuration:
+
+```python
+import os
+from redis_simplify import RedisClient
+
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+client = RedisClient.from_url(redis_url, log_level="INFO")
+```
+
+---
+
+## Enable metrics for production monitoring
+
+Monitor your Redis operations in production:
+
+```python
+client.enable_metrics()
+
+# Your operations
+for i in range(100):
+    client.set(f"key:{i}", f"value:{i}")
+
+# Get performance statistics
+metrics = client.get_metrics()
+print(f"Average SET time: {metrics['commands']['set']['avg_time_ms']}ms")
+print(f"Total operations: {metrics['commands']['set']['count']}")
+
+# Send metrics to monitoring system (Prometheus, Datadog, etc.)
+send_to_monitoring(metrics)
+
+# Reset when needed
+client.reset_metrics()
+```
+
+---
+
+## Use health checks for service monitoring
+
+Implement health checks for your service:
+
+```python
+# In your health check endpoint
+@app.route('/health')
+def health():
+    health = client.health_check()
+
+    if health["status"] == "healthy":
+        return {
+            "status": "healthy",
+            "redis": {
+                "version": health["redis_version"],
+                "memory": health["used_memory_human"],
+                "clients": health["connected_clients"]
+            }
+        }, 200
+    else:
+        return {
+            "status": "unhealthy",
+            "error": health.get("error")
+        }, 503
+```
+
+---
+
+## Monitor slow queries in production
+
+Keep an eye on performance issues:
+
+```python
+import time
+
+def check_slow_queries():
+    # Check for slow queries periodically
+    slow = client.slowlog(10)
+
+    if slow:
+        logger.warning(f"Slow queries detected: {len(slow)}")
+        for cmd in slow:
+            # cmd = [id, timestamp, duration, command, ...]
+            logger.warning(f"Slow command: {cmd[3]} took {cmd[1]}ms")
+
+        # Alert your team or monitoring system
+        alert_system(slow)
+
+    return slow
+
+# Run every minute
+while True:
+    check_slow_queries()
+    time.sleep(60)
+```
+
+---
+
+## Use context managers for pipelines
+
+Ensure pipelines are properly executed:
+
+```python
+# Recommended - auto-executes on exit
+with client.pipeline() as pipe:
+    pipe.set("user:1", "John")
+    pipe.set("user:2", "Jane")
+    pipe.set("user:3", "Bob")
+    # Auto-executes when exiting the context
+```
+
+```python
+# Not recommended - manual execute (can be forgotten)
+pipe = client.pipeline()
+pipe.set("user:1", "John")
+pipe.set("user:2", "Jane")
+pipe.set("user:3", "Bob")
+pipe.execute()  # Risk of forgetting this line
+```
+
+---
+
+## Use distributed locks for critical sections
+
+Prevent race conditions:
+
+```python
+# Recommended - automatic release with context manager
+def process_payment(payment_id):
+    with client.lock(f"payment:{payment_id}", timeout=10):
+        # Critical section - only one instance executes
+        payment = get_payment_from_db(payment_id)
+
+        if payment.status == "pending":
+            process_payment_logic(payment)
+            update_payment_status(payment, "processed")
+```
+
+```python
+# Not recommended - manual lock/unlock
+def process_payment_manual(payment_id):
+    lock_key = f"lock:payment:{payment_id}"
+
+    if client.set(lock_key, "locked", nx=True, expire_seconds=10):
+        try:
+            process_payment_logic(payment)
+        finally:
+            client.delete(lock_key)
+```
+
+---
+
+## Handle connection errors gracefully
+
+Always check connectivity before critical operations:
+
+```python
+def get_user_data(user_id):
+    # Check connection first
+    if not client.ping():
+        logger.error("Redis unavailable, falling back to database")
+        return fetch_from_database(user_id)
+
+    # Try cache first
+    data = client.get(f"user:{user_id}")
+
+    if data is None:
+        data = fetch_from_database(user_id)
+        client.set(f"user:{user_id}", data, expire_seconds=300)
+
+    return data
+```
+
+---
+
+## Use appropriate log levels
+
+Configure logging based on environment:
+
+```python
+# Development
+client = RedisClient(
+    host="localhost",
+    port=6379,
+    log_level="DEBUG"
+)
+
+# Production
+client = RedisClient(
+    host="localhost",
+    port=6379,
+    log_level="INFO"
+)
+
+# High traffic
+client = RedisClient(
+    host="localhost",
+    port=6379,
+    log_level="ERROR"
+)
+```
+
+---
+
+## Reset metrics periodically
+
+Prevent memory growth:
+
+```python
+import time
+
+def collect_and_reset_metrics():
+    while True:
+        metrics = client.get_metrics()
+
+        if metrics.get("enabled"):
+            send_metrics_to_prometheus(metrics)
+            client.reset_metrics()
+            logger.info("Metrics collected and reset")
+
+        time.sleep(3600)
+```
+
+---
+
+## Use batch operations for multiple keys
+
+Improve performance by reducing round trips:
+
+```python
+# Batch SET
+items = [
+    ("user:1", "John"),
+    ("user:2", "Jane"),
+    ("user:3", "Bob"),
+    ("user:4", "Alice")
+]
+
+client.batch_set(items)
+
+# Batch GET
+keys = ["user:1", "user:2", "user:3", "user:4"]
+users = client.batch_get(keys)
+```
+
+```python
+# Multiple round trips
+client.set("user:1", "John")
+client.set("user:2", "Jane")
+client.set("user:3", "Bob")
+client.set("user:4", "Alice")
+
+user1 = client.get("user:1")
+user2 = client.get("user:2")
+user3 = client.get("user:3")
+user4 = client.get("user:4")
+```
+
+---
+
+## Use SCAN instead of KEYS for large datasets
+
+Avoid blocking Redis:
+
+```python
+# Recommended
+def process_all_users():
+    count = 0
+
+    for key in client.scan_iter(match="user:*", count=100):
+        data = client.get(key)
+        process_user(data)
+
+        count += 1
+
+        if count % 1000 == 0:
+            logger.info(f"Processed {count} users")
+
+    return count
+```
+
+```python
+# Dangerous
+def process_all_users_dangerous():
+    keys = client.keys("user:*")
+
+    for key in keys:
+        data = client.get(key)
+        process_user(data)
+```
+
+---
+
+## Use memory monitoring to detect issues
+
+```python
+def check_redis_memory():
+    info = client.info("memory")
+
+    used_memory = info["used_memory_human"]
+    fragmentation = info["mem_fragmentation_ratio"]
+    maxmemory = info.get("maxmemory_human", "0B")
+
+    logger.info(
+        f"Redis memory: used={used_memory}, max={maxmemory}"
+    )
+
+    if fragmentation > 1.5:
+        logger.warning(
+            f"High memory fragmentation: {fragmentation}"
+        )
+
+    for key in client.scan_iter(match="large:*", count=10):
+        usage = client.memory_usage(key)
+
+        if usage and usage > 10 * 1024 * 1024:
+            logger.warning(
+                f"Large key: {key} uses {usage} bytes"
+            )
+```
+
+---
+
+## Use Admin commands for debugging
+
+```python
+def debug_redis_connection():
+    info = client.info()
+
+    print(f"Redis version: {info['redis_version']}")
+    print(f"Connected clients: {info['connected_clients']}")
+    print(f"Keys in DB: {client.dbsize()}")
+
+    slow = client.slowlog(10)
+
+    if slow:
+        print(f"Slow queries: {len(slow)}")
+
+        for cmd in slow:
+            print(f"  {cmd[3]} - {cmd[1]}ms")
+
+    clients = client.client_list()
+
+    print(f"Active clients: {len(clients)}")
+
+    for c in clients[:5]:
+        print(f"  {c.get('addr')} - {c.get('age')}s")
+```
+
+---
+
+## Use cache patterns effectively
+
+```python
+def get_user_profile(user_id):
+    return client.get_or_set(
+        f"user:{user_id}:profile",
+        lambda: fetch_user_from_database(user_id),
+        ttl=300
+    )
+
+def get_user_with_fallback(user_id):
+    data = client.get(f"user:{user_id}")
+
+    if data is None:
+        data = fetch_from_database(user_id)
+        client.set(
+            f"user:{user_id}",
+            data,
+            expire_seconds=3600
+        )
+
+    return data
+
+def invalidate_user_cache(user_id):
+    client.delete(f"user:{user_id}")
+    client.delete_pattern(f"user:{user_id}:*")
+```
+
+---
+
+## Use rate limiting to protect APIs
+
+```python
+def api_endpoint(user_id):
+    if not client.rate_limit_check(
+        f"api:user:{user_id}",
+        10,
+        60
+    ):
+        return {"error": "Rate limit exceeded"}, 429
+
+    data = client.get_or_set(
+        f"api:data:{user_id}",
+        lambda: expensive_computation(user_id),
+        ttl=60
+    )
+
+    return {"data": data}, 200
+```
+
+```python
+def api_endpoint_simple(user_id):
+    data = client.run_with_rate_limit(
+        client.get,
+        f"api:user:{user_id}",
+        10,
+        60,
+        f"user:{user_id}"
+    )
+
+    if data is None:
+        return {"error": "Rate limit exceeded"}, 429
+
+    return {"data": data}, 200
+```
+
+---
+
+## Use Pub/Sub for real-time notifications
+
+```python
+def setup_notification_handlers():
+
+    def handle_order_update(channel, message):
+        order_id = json.loads(message)["order_id"]
+        logger.info(f"Order {order_id} updated")
+        process_order_update(order_id)
+
+    def handle_user_message(channel, message):
+        user_id = json.loads(message)["user_id"]
+        logger.info(f"Message for user {user_id}")
+        send_push_notification(user_id, message)
+
+    client.subscribe("orders", handle_order_update)
+    client.subscribe("notifications", handle_user_message)
+    client.subscribe("messages", handle_user_message)
+
+def notify_order_update(order_id, status):
+    client.publish_json(
+        "orders",
+        {
+            "order_id": order_id,
+            "status": status,
+            "timestamp": time.time()
+        }
+    )
+```
+
+---
+
+## Use proper cleanup when using context managers
+
+```python
+# Automatic cleanup
+with client as c:
+    c.set("key", "value")
+    data = c.get("key")
+```
+
+```python
+# Pipeline with auto execute
+with client.pipeline() as pipe:
+    pipe.set("key1", "value1")
+    pipe.set("key2", "value2")
+```
+
+```python
+# Manual cleanup
+try:
+    client.pipeline()
+finally:
+    client.close()
+```
+
+---
+
+## Use decorators for common patterns
+
+```python
+@client.cached(ttl=60, key_prefix="db")
+def get_expensive_data(query_id):
+    return expensive_database_query(query_id)
+
+@client.retry(max_attempts=3, delay=0.5)
+def call_external_api(url):
+    return requests.get(url, timeout=5)
+
+@client.cached(ttl=300)
+@client.retry(max_attempts=3)
+def get_external_data_with_retry(endpoint):
+    return fetch_from_external_api(endpoint)
+```
+
+---
+
+## Use info sections for targeted monitoring
+
+```python
+def monitor_redis():
+    memory = client.info("memory")
+    stats = client.info("stats")
+    clients = client.info("clients")
+    replication = client.info("replication")
+
+    return {
+        "memory_used": memory["used_memory_human"],
+        "memory_fragmentation": memory["mem_fragmentation_ratio"],
+        "ops_per_second": stats["instantaneous_ops_per_sec"],
+        "connected_clients": clients["connected_clients"],
+        "role": replication["role"]
+    }
+```
+
+---
+
+## Use async flush for non-blocking operations
+
+```python
+# Recommended
+client.flushdb(async_mode=True)
+logger.info("Database flush initiated (async)")
+
+while True:
+    info = client.info("persistence")
+
+    if info["rdb_bgsave_in_progress"] == 0:
+        break
+
+    time.sleep(1)
+```
+
+```python
+# Not recommended
+client.flushdb()
+```
 
 ## Running Tests
 
