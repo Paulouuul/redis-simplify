@@ -12,33 +12,35 @@ logger.addHandler(logging.NullHandler())
 class RedisClient(AllMixins):
     """Cliente Redis genérico SÍNCRONO - pode ser usado por qualquer parte do sistema"""
     
-    def __init__(
-       self,
-        host: str,
-        port: int = 6379,
-        password: Optional[str] = None,
-        db: int = 0,
-        decode_responses: bool = True,
-        socket_keepalive: bool = True,
-        health_check_interval: int = 30,
-        log_level: Optional[str] = None
-    ):
-        super().__init__()
-        # Configuração via parâmetros 
+    def __init__(self, 
+                 host: str = 'localhost',
+                 port: int = 6379,
+                 password: Optional[str] = None,
+                 db: int = 0,
+                 decode_responses: bool = True,
+                 socket_keepalive: bool = True,
+                 health_check_interval: int = 30,
+                 log_level: Optional[str] = None,
+                 **kwargs):
+        super().__init__(**kwargs)
         self.host = host
         self.port = port
         self.password = password
         self.db = db
-        
         self.decode_responses = decode_responses
         self.socket_keepalive = socket_keepalive
         self.health_check_interval = health_check_interval
-
+        self.extra_kwargs = kwargs
+        self._url = None
+        self.client = None
+        
         if log_level:
             self._configure_logging(log_level)
         
-        self.client: Optional[redis.Redis] = None
-        self._connect()
+        self._connect()  # Conecta automaticamente
+
+
+    
 
     def _configure_logging(self, log_level: str):
         """Configura o nível de logging do cliente"""
