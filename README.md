@@ -50,10 +50,10 @@ Stop writing boilerplate. Start building faster.
 * **Health checks** and monitoring
 * **Batch operations** support
 * **Decorators** for caching and retry
-* **Admin & Monitoring** commands (`info`, `slowlog`, `client_list`, `flushdb`, `flushall`)  ← ADICIONAR AQUI
-* **Memory usage monitoring** for keys  ← ADICIONAR AQUI
-* **Info sections** discovery  ← ADICIONAR AQUI
-* **Async flush** support (non-blocking)  ← ADICIONAR AQUI
+* **Admin & Monitoring** commands (`info`, `slowlog`, `client_list`, `flushdb`, `flushall`)
+* **Memory usage monitoring** for keys
+* **Info sections** discovery
+* **Async flush** support (non-blocking)
 * Support for **Sorted Sets**, **Hashes**, **Lists**, **Sets**, **Strings**
 
 ---
