@@ -18,7 +18,7 @@ Stop writing boilerplate. Start building faster.
 | Problem | Solution |
 |---|---|
 |  Connection failures break your app | Automatic reconnection |
-|  Endless try/eXcept blocks | Built-in fallbacks |
+|  Endless try/except blocks | Built-in fallbacks |
 |  No built-in monitoring | Metrics & health checks |
 |  Boilerplate for caching | get_or_set() pattern |
 |  Manual Redis admin | Info, slowlog, flush commands |
