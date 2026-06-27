@@ -292,11 +292,32 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | -------------------------------------- | ----------------------- |
 | `set(key, value, expire_seconds=None, nx=False, xx=False)` | Set a value with options |
 | `get(key)`                             | Retrieve a value        |
-| `delete(*keys)`                        | Delete one or more keys |
-| `exists(key)`                          | Check if a key exists   |
-| `expire(key, seconds)`                 | Set expiration time     |
 | `incr(key)`                            | Increment a value       |
 | `decr(key)`                            | Decrement a value       |
+| `append(key, value)`                   | Append to a string      |
+| `strlen(key)`                          | Get string length       |
+| `getrange(key, start, end)`            | Get substring           |
+| `setrange(key, offset, value)`         | Overwrite part of string|
+
+---
+
+### Keys
+
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `delete(*keys)`                             | Delete one or more keys             |
+| `exists(key)`                               | Check if key exists                 |
+| `expire(key, seconds)`                      | Set expiration in seconds           |
+| `expireat(key, timestamp)`                  | Set expiration at Unix timestamp    |
+| `ttl(key)`                                  | Get time to live in seconds         |
+| `pttl(key)`                                 | Get time to live in milliseconds    |
+| `persist(key)`                              | Remove expiration from key          |
+| `rename(old_key, new_key)`                  | Rename a key                        |
+| `renamenx(old_key, new_key)`                | Rename if new key doesn't exist     |
+| `type(key)`                                 | Get key type                        |
+| `keys(pattern="*")`                         | Get keys matching pattern (⚠️ use with caution) |
+| `scan_iter(match=None, count=100)`          | Iterate keys without loading all    |
+| `randomkey()`                               | Get random key from database        |
 
 ---
 
