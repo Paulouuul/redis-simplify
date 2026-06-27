@@ -3,7 +3,7 @@
 [![PyPI Version](https://img.shields.io/pypi/v/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![License](https://img.shields.io/pypi/l/redis-simplify)](LICENSE)
-[![Downloads](https://img.shields.io/pypi/dm/redis-simplify)](https://pypi.org/project/redis-simplify/)
+[![Downloads](https://pepy.tech/badge/redis-simplify)](https://pepy.tech/project/redis-simplify)
 [![Tests](https://github.com/Paulouuul/redis-simplify/workflows/Tests/badge.svg)](https://github.com/Paulouuul/redis-simplify/actions)
 
 **Redis made simple, safe, and production-ready.**
