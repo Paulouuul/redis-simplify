@@ -29,39 +29,7 @@ class StringMixin:
         except Exception as e:
             logger.error(f"Error on get {key}: {e}")
             return None
-    @recorded()
-    def delete(self, *keys: str) -> int:
-        """Deleta uma ou mais chaves"""
-        if not self._ensure_connection():
-            return 0
-        try:
-            return self.client.delete(*keys)
-        except Exception as e:
-            logger.error(f"Error on delete {keys}: {e}")
-            return 0
         
-    @recorded()
-    def exists(self, key: str) -> bool:
-        """Verifica se chave existe"""
-        if not self._ensure_connection():
-            return False
-        try:
-            result = self.client.exists(key)
-            return bool(result)
-        except Exception as e:
-            logger.error(f"Error on exists {key}: {e}")
-            return False
-    @recorded()
-    def expire(self, key: str, seconds: int) -> bool:
-        """Define tempo de expiração"""
-        if not self._ensure_connection():
-            return False
-        try:
-            result = self.client.expire(key, seconds)
-            return bool(result)
-        except Exception as e:
-            logger.error(f"Error on expire {key}: {e}")
-            return False
     @recorded()
     def incr(self, key: str) -> int:
         """Incrementa contador"""
