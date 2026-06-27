@@ -2,6 +2,7 @@
 
 from redis_simplify.mixins.connection import ConnectionMixin
 from redis_simplify.mixins.string import StringMixin
+from redis_simplify.mixins.key import KeyMixin
 from redis_simplify.mixins.set import SetMixin
 from redis_simplify.mixins.hash import HashMixin
 from redis_simplify.mixins.list import ListMixin
@@ -22,6 +23,7 @@ from redis_simplify.mixins.health import HealthMixin
 __all__ = [
     'ConnectionMixin',
     'StringMixin',
+    'KeyMixin',
     'SetMixin',
     'HashMixin',
     'ListMixin',
@@ -44,6 +46,7 @@ __all__ = [
 class AllMixins(
     ConnectionMixin,
     StringMixin,
+    KeyMixin,
     SetMixin,
     HashMixin,
     ListMixin,
