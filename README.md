@@ -3,6 +3,9 @@
 [![PyPI Version](https://img.shields.io/pypi/v/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/redis-simplify)](https://pypi.org/project/redis-simplify/)
 [![License](https://img.shields.io/pypi/l/redis-simplify)](LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/redis-simplify)](https://pypi.org/project/redis-simplify/)
+[![Tests](https://github.com/Paulouuul/redis-simplify/workflows/Tests/badge.svg)](https://github.com/Paulouuul/redis-simplify/actions)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 **Redis made simple, safe, and production-ready.**
 
@@ -22,7 +25,7 @@ Stop writing boilerplate. Start building faster.
 |  No built-in monitoring | Metrics & health checks |
 |  Boilerplate for caching | get_or_set() pattern |
 |  Manual Redis admin | Info, slowlog, flush commands |
-|  No distributed locks | Built-in lock contet manager |
+| No distributed locks | Built-in lock **context** manager |
 |  No rate limiting | Sliding window rate limiter |
 |  No async flush | Non-blocking flush operations |
 
@@ -32,29 +35,40 @@ Stop writing boilerplate. Start building faster.
 
 ## Features
 
-* Explicit Redis configuration (`host`, `port`, `password`, `db`)
-* **URL-based configuration** via `from_url()`
-* Automatic reconnection when Redis becomes unavailable
-* Centralized logging and error handling
-* JSON helpers for storing Python dictionaries
-* Safe fallback values on failures
-* Fully tested with `pytest`
-* Lightweight implementation
-* Synchronous API
-* **18 specialized mixins** for organized code
-* **Distributed locks** with context manager
-* **Rate limiting** utilities
-* **Cache utilities** (get_or_set, delete_pattern)
-* **Pub/Sub** simplified
-* **Performance metrics** collection
-* **Health checks** and monitoring
-* **Batch operations** support
-* **Decorators** for caching and retry
-* **Admin & Monitoring** commands (`info`, `slowlog`, `client_list`, `flushdb`, `flushall`)
-* **Memory usage monitoring** for keys
-* **Info sections** discovery
-* **Async flush** support (non-blocking)
-* Support for **Sorted Sets**, **Hashes**, **Lists**, **Sets**, **Strings**
+### Core Capabilities
+- **Explicit configuration** — `host`, `port`, `password`, `db`
+- **URL-based configuration** — `from_url()` for 12-factor apps
+- **Automatic reconnection** — Self-healing connections
+- **Centralized logging** — Configurable log levels
+- **Safe fallback values** — Never crash on Redis errors
+- **Lightweight** — Minimal overhead, maximum impact
+- **Synchronous API** — Simple and predictable
+
+### Enterprise Features
+- **Distributed locks** — Context manager based
+- **Rate limiting** — Sliding window algorithm
+- **Cache utilities** — `get_or_set()`, `delete_pattern()`
+- **Pub/Sub** — Callback-based subscriptions
+- **Performance metrics** — Built-in decorators
+- **Health checks** — Ready for monitoring
+- **Batch operations** — Pipeline optimizations
+- **Decorators** — `@cached`, `@retry`
+
+### Data Structures
+- **Strings** — Full string operations
+- **JSON** — Native JSON serialization
+- **Sorted Sets** — ZSET operations
+- **Lists** — LPUSH, RPUSH, LRANGE
+- **Sets** — SADD, SMEMBERS, SREM
+- **Hashes** — HSET, HGET, HGETALL
+
+### Admin & Monitoring
+- **Server info** — `info()`, `info_sections()`
+- **Slowlog** — Identify performance bottlenecks
+- **DBSIZE** — Key count monitoring
+- **Memory usage** — Per-key memory tracking
+- **Client list** — Active connections
+- **Flush operations** — Async/non-blocking
 
 ---
 
@@ -1323,3 +1337,11 @@ This project is licensed under the MIT License.
 **Paulo Ricardo Tebet Lyrio**
 
 GitHub: https://github.com/Paulouuul/redis-simplify
+
+## 💖 Support the Project
+
+If you find this project useful:
+- ⭐ Star the repository
+- 🔧 Contribute code or documentation
+- 📢 Share with your network
+- 💰 Consider sponsoring
