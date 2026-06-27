@@ -8,9 +8,13 @@ class MetricsMixin:
     """Métricas de performance"""
     
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._metrics_enabled = False
+        # Extrai argumentos específicos do MetricsMixin
+        self._metrics_enabled = kwargs.pop('metrics_enabled', False)
         self._metrics = defaultdict(lambda: {"count": 0, "total_time": 0, "errors": 0})
+        
+        # NÃO passa kwargs adiante (é o último mixin)
+        # super().__init__() sem argumentos
+        super().__init__()
 
     def enable_metrics(self):
         """Habilita coleta de métricas"""

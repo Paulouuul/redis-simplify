@@ -11,9 +11,12 @@ class PubSubMixin:
     """Publicação e inscrição"""
 
     def __init__(self, *args, **kwargs):
+        # Extrai argumentos específicos
+        self._pubsubs = kwargs.pop('pubsubs', [])
+        self._pubsub_threads = kwargs.pop('pubsub_threads', [])
+        
+        # Passa kwargs/args adiante (se houver)
         super().__init__(*args, **kwargs)
-        self._pubsubs = []  # Armazena subscriptions ativas
-        self._pubsub_threads = []  # Armazena threads ativas
 
     @recorded()
     def publish(self, channel: str, message: str) -> int:
