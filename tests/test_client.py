@@ -642,3 +642,189 @@ class TestRedisClientPubSub:
         
         assert len(received) > 0
         assert received[0][1] == "test message"
+
+
+    class TestRedisClientAdmin:
+        """Testes de comandos administrativos e monitoramento"""
+        
+        def test_info(self, client):
+            """Testa comando info"""
+            info = client.info()
+            
+            # Verifica se retorna um dicionário
+            assert isinstance(info, dict)
+            
+            # Verifica se tem informações essenciais
+            assert 'redis_version' in info
+            assert 'used_memory_human' in info
+            assert 'connected_clients' in info
+            assert 'uptime_in_days' in info
+            
+            # Verifica se os valores são do tipo esperado
+            assert isinstance(info['redis_version'], str)
+            assert isinstance(info['used_memory_human'], str)
+            assert isinstance(info['connected_clients'], int)
+        
+        def test_info_sections(self, client):
+            """Testa listagem de seções do info"""
+            sections = client.info_sections()
+            
+            assert isinstance(sections, list)
+            assert len(sections) > 0
+            
+            # Verifica se as seções comuns estão presentes
+            common_sections = ['server', 'clients', 'memory', 'stats', 'keyspace']
+            # Pode ser que algumas não existam, então verificamos se pelo menos algumas estão
+            assert any(section in sections for section in common_sections)
+        
+        def test_info_specific_section(self, client):
+            """Testa info com seção específica"""
+            # Testa seção memory
+            memory_info = client.info('memory')
+            assert isinstance(memory_info, dict)
+            assert 'used_memory_human' in memory_info
+            assert 'mem_fragmentation_ratio' in memory_info
+            
+            # Testa seção stats
+            stats_info = client.info('stats')
+            assert isinstance(stats_info, dict)
+            assert 'total_commands_processed' in stats_info
+            assert 'instantaneous_ops_per_sec' in stats_info
+            
+            # Testa seção keyspace
+            keyspace_info = client.info('keyspace')
+            assert isinstance(keyspace_info, dict)
+        
+        def test_info_invalid_section(self, client):
+            """Testa info com seção inválida"""
+            # Deve retornar todas as informações ou avisar
+            info = client.info('invalid_section')
+            assert isinstance(info, dict)
+            # Deve ter informações (fallback para 'all')
+            assert 'redis_version' in info or len(info) > 0
+        
+        def test_dbsize(self, client):
+            """Testa tamanho do banco de dados"""
+            # Limpa o banco de teste
+            client.flushdb()
+            
+            # Verifica tamanho inicial
+            assert client.dbsize() == 0
+            
+            # Adiciona algumas chaves
+            client.set('test:size:1', 'value1')
+            client.set('test:size:2', 'value2')
+            client.set('test:size:3', 'value3')
+            
+            # Verifica tamanho
+            assert client.dbsize() == 3
+            
+            # Limpa
+            client.delete('test:size:1', 'test:size:2', 'test:size:3')
+        
+        def test_memory_usage(self, client):
+            """Testa uso de memória de uma chave"""
+            # Cria uma chave
+            client.set('test:memory', 'value')
+            
+            # Verifica uso de memória
+            usage = client.memory_usage('test:memory')
+            assert usage is not None
+            assert isinstance(usage, int)
+            assert usage > 0
+            
+            # Chave inexistente
+            usage = client.memory_usage('test:inexistente')
+            assert usage is None or usage == 0
+            
+            client.delete('test:memory')
+        
+        def test_slowlog(self, client):
+            """Testa slowlog"""
+            # Executa alguns comandos para gerar slowlog (se configurado)
+            for i in range(10):
+                client.set(f'test:slow:{i}', f'value{i}')
+            
+            # Obtém slowlog
+            slow_commands = client.slowlog(5)
+            assert isinstance(slow_commands, list)
+            
+            # Se houver comandos lentos, verifica estrutura
+            if slow_commands:
+                cmd = slow_commands[0]
+                # Cada entrada tem: id, timestamp, duração, comando, etc.
+                assert isinstance(cmd, (list, tuple))
+                assert len(cmd) >= 4  # id, timestamp, duration, command
+            
+            # Limpa
+            for i in range(10):
+                client.delete(f'test:slow:{i}')
+        
+        def test_client_list(self, client):
+            """Testa lista de clientes"""
+            clients = client.client_list()
+            
+            assert isinstance(clients, list)
+            assert len(clients) >= 1  # Pelo menos o próprio cliente
+            
+            # Verifica estrutura do primeiro cliente
+            if clients:
+                first_client = clients[0]
+                # Pode ser dict ou string dependendo do formato
+                if isinstance(first_client, dict):
+                    assert 'addr' in first_client or 'id' in first_client
+                else:
+                    assert isinstance(first_client, str)
+        
+        def test_flushdb(self, client):
+            """Testa flushdb (limpa banco atual)"""
+            # Cria algumas chaves
+            client.set('test:flush:1', 'value1')
+            client.set('test:flush:2', 'value2')
+            assert client.dbsize() >= 2
+            
+            # Limpa o banco
+            result = client.flushdb()
+            assert result is True
+            
+            # Verifica que foi limpo
+            # Nota: O banco de teste pode ter outras chaves, mas as que criamos sumiram
+            assert client.exists('test:flush:1') is False
+            assert client.exists('test:flush:2') is False
+        
+        def test_flushdb_async(self, client):
+            """Testa flushdb assíncrono"""
+            client.set('test:flush:async', 'value')
+            
+            result = client.flushdb(async_mode=True)
+            assert result is True
+            
+            # Aguarda um pouco (async pode não ser instantâneo)
+            import time
+            time.sleep(0.1)
+            
+            assert client.exists('test:flush:async') is False
+        
+        def test_flushall(self, client):
+            """Testa flushall (limpa todos os bancos) - CUIDADO!"""
+            # Cria chave em DB 0 (padrão)
+            client.set('test:flushall', 'value')
+            
+            # Executa flushall
+            result = client.flushall()
+            assert result is True
+            
+            # Verifica que a chave sumiu
+            assert client.exists('test:flushall') is False
+        
+        def test_flushall_async(self, client):
+            """Testa flushall assíncrono"""
+            client.set('test:flushall:async', 'value')
+            
+            result = client.flushall(async_mode=True)
+            assert result is True
+            
+            import time
+            time.sleep(0.1)
+            
+            assert client.exists('test:flushall:async') is False
