@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "redis-simplify"
-version = "2.1.4"
-description = "Convenience wrapper for Redis - connection, JSON helpers, and automatic reconnection"
+version = "3.0.0"
+description = "Production-ready Redis wrapper with automatic reconnection, JSON helpers, and enterprise features"
 readme = "README.md"
 authors = [
     {name = "Paulo Ricardo Tebet Lyrio", email = "tebetpaulo91@yahoo.com"}
