@@ -26,6 +26,35 @@ class TestRedisClientString:
         assert client.decr("test:counter") == 10
         client.delete("test:counter")
 
+    def test_append(self, client):
+        """Testa append em string"""
+        client.set("test:append", "Hello")
+        result = client.append("test:append", " World")
+        assert result == 11  # Novo tamanho
+        assert client.get("test:append") == "Hello World"
+        client.delete("test:append")
+    
+    def test_strlen(self, client):
+        """Testa strlen"""
+        client.set("test:strlen", "Hello")
+        assert client.strlen("test:strlen") == 5
+        client.delete("test:strlen")
+    
+    def test_getrange(self, client):
+        """Testa getrange (substring)"""
+        client.set("test:getrange", "Hello World")
+        assert client.getrange("test:getrange", 0, 4) == "Hello"
+        assert client.getrange("test:getrange", 6, 10) == "World"
+        client.delete("test:getrange")
+    
+    def test_setrange(self, client):
+        """Testa setrange (sobrescrever parte da string)"""
+        client.set("test:setrange", "Hello World")
+        result = client.setrange("test:setrange", 6, "Redis")
+        assert result == 11  # Novo tamanho
+        assert client.get("test:setrange") == "Hello Redis"
+        client.delete("test:setrange")
+
 
 class TestRedisClientJSON:
     """Testes de operações com JSON"""
