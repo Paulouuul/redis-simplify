@@ -986,3 +986,256 @@ class TestRedisClientKeyMixin:
         assert key.startswith("test:random:")
         
         client.delete("test:random:1", "test:random:2")
+
+
+class TestRedisClientConnectionManagement:
+    def test_set_timeouts(self, client):
+        """Testa set_timeouts"""
+        client.set_timeouts(
+            socket_timeout=5.0,
+            socket_connect_timeout=3.0,
+            retry_on_timeout=True
+        )
+        assert client.ping() is True
+
+    def test_update_url(self, client):
+        """Testa update_url"""
+        client.update_url("redis://localhost:6379/9")
+        assert client.ping() is True
+
+    
+    def test_set_retry_config(self, client):
+        """Testa set_retry_config"""
+        client.set_retry_config(retries=5, backoff_base=2.0)
+        assert client.ping() is True
+
+
+class TestRedisClientJSONUnwrap:
+    """Testes para o parâmetro unwrap dos métodos JSON"""
+    
+    def test_get_json_with_unwrap_true(self, client):
+        """Testa get_json com unwrap=True (padrão)"""
+        data = {"name": "João", "tags": ["python", "redis"]}
+        client.set_json("test:unwrap", data)
+        
+        result = client.get_json("test:unwrap", unwrap=True)
+        assert result == data  # Retorna o objeto completo
+        
+        client.delete("test:unwrap")
+    
+    def test_get_json_with_unwrap_false(self, client):
+        """Testa get_json com unwrap=False (formato cru do RedisJSON)"""
+        data = {"name": "João", "tags": ["python", "redis"]}
+        client.set_json("test:unwrap", data)
+        
+        result = client.get_json("test:unwrap", unwrap=False)
+        # RedisJSON retorna lista com 1 item
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0] == data
+        
+        client.delete("test:unwrap")
+    
+    def test_get_json_path_with_unwrap_true(self, client):
+        """Testa get_json_path com unwrap=True"""
+        data = {"name": "João", "age": 30}
+        client.set_json("test:unwrap", data)
+        
+        result = client.get_json_path("test:unwrap", '$.name', unwrap=True)
+        assert result == "João"
+        
+        client.delete("test:unwrap")
+    
+    def test_get_json_path_with_unwrap_false(self, client):
+        """Testa get_json_path com unwrap=False (formato cru)"""
+        data = {"name": "João", "age": 30}
+        client.set_json("test:unwrap", data)
+        
+        result = client.get_json_path("test:unwrap", '$.name', unwrap=False)
+        # RedisJSON retorna lista com 1 item: ['"João"']
+        assert isinstance(result, list)
+        assert len(result) == 1
+        
+        client.delete("test:unwrap")
+    
+    def test_mget_json_with_unwrap_true(self, client):
+        """Testa mget_json com unwrap=True"""
+        client.set_json("test:unwrap:1", {"name": "João"})
+        client.set_json("test:unwrap:2", {"name": "Maria"})
+        
+        result = client.mget_json(["test:unwrap:1", "test:unwrap:2"], unwrap=True)
+        assert result == {
+            "test:unwrap:1": {"name": "João"},
+            "test:unwrap:2": {"name": "Maria"}
+        }
+        
+        client.delete("test:unwrap:1", "test:unwrap:2")
+    
+    def test_mget_json_with_unwrap_false(self, client):
+        """Testa mget_json com unwrap=False (formato cru)"""
+        client.set_json("test:unwrap:1", {"name": "João"})
+        client.set_json("test:unwrap:2", {"name": "Maria"})
+        
+        result = client.mget_json(["test:unwrap:1", "test:unwrap:2"], unwrap=False)
+        # Cada valor é uma lista com 1 item
+        assert isinstance(result["test:unwrap:1"], list)
+        assert isinstance(result["test:unwrap:2"], list)
+        
+        client.delete("test:unwrap:1", "test:unwrap:2")
+    
+    def test_get_json_unwrap_with_missing_key(self, client):
+        """Testa get_json com unwrap e chave inexistente"""
+        result = client.get_json("test:unwrap:missing", unwrap=True)
+        assert result is None
+        
+        result = client.get_json("test:unwrap:missing", unwrap=False)
+        # Sem RedisJSON, retorna None
+        assert result is None
+
+
+
+class TestRedisClientDecoratorsAdvanced:
+    """Testes avançados de decorators"""
+    
+    def test_cached_with_different_keys(self, client):
+        """Testa cached com diferentes chaves"""
+        call_count = 0
+        
+        @client.cached(ttl=10, key_prefix="test")
+        def func(x):
+            nonlocal call_count
+            call_count += 1
+            return x * 2
+        
+        assert func(5) == 10
+        assert func(5) == 10
+        assert func(10) == 20
+        assert call_count == 2
+        
+        client.delete_pattern("test:*")
+    
+    def test_retry_decorator_success_first(self, client):
+        """Testa retry com sucesso na primeira tentativa"""
+        attempt = 0
+        
+        @client.retry(max_attempts=3)
+        def success():
+            nonlocal attempt
+            attempt += 1
+            return "ok"
+        
+        assert success() == "ok"
+        assert attempt == 1
+    
+    def test_retry_decorator_exhausted(self, client):
+        """Testa retry com todas tentativas falhando"""
+        attempt = 0
+        
+        @client.retry(max_attempts=3, delay=0.1)
+        def always_fail():
+            nonlocal attempt
+            attempt += 1
+            raise ValueError("Always fails")
+        
+        with pytest.raises(ValueError):
+            always_fail()
+        
+        assert attempt == 3
+
+class TestRedisClientDecoratorsComplete:
+    """Testes completos de todos os decorators (fallback, retry, cached)"""
+    
+    def test_with_fallback_decorator(self, client):
+        """Testa @with_fallback como decorator"""
+        from redis_simplify.mixins.decorators import with_fallback
+        
+        @with_fallback(default_return="default")
+        def risky_function():
+            raise ValueError("Error!")
+        
+        result = risky_function()
+        assert result == "default"
+
+    
+    def test_no_fallback_decorator(self, client):
+        """Testa @no_fallback como decorator"""
+        from redis_simplify.mixins.decorators import no_fallback
+        
+        @no_fallback
+        def risky_function():
+            raise ValueError("Error!")
+        
+        with pytest.raises(ValueError):
+            risky_function()
+    
+    def test_fallback_value_decorator(self, client):
+        """Testa @fallback_value como decorator"""
+        from redis_simplify.mixins.decorators import fallback_value
+        
+        @fallback_value([])
+        def risky_function():
+            raise ValueError("Error!")
+        
+        result = risky_function()
+        assert result == []
+    
+    def test_retry_with_fallback(self, client):
+        """Testa @retry com fallback"""
+        attempt = 0
+        
+        @client.retry(max_attempts=3, fallback="default")
+        def always_fail():
+            nonlocal attempt
+            attempt += 1
+            raise ValueError("Always fails")
+        
+        result = always_fail()
+        assert result == "default"
+        assert attempt == 3
+    
+    def test_retry_with_fallback_none(self, client):
+        """Testa @retry com fallback=None (deve levantar exceção)"""
+        attempt = 0
+        
+        @client.retry(max_attempts=3, fallback=None)
+        def always_fail():
+            nonlocal attempt
+            attempt += 1
+            raise ValueError("Always fails")
+        
+        with pytest.raises(ValueError):
+            always_fail()
+        
+        assert attempt == 3
+    
+    def test_cached_with_fallback(self, client):
+        """Testa @cached com fallback"""
+        call_count = 0
+        
+        @client.cached(ttl=10, fallback="default")
+        def failing_function():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error!")
+        
+        result = failing_function()
+        assert result == "default"
+        assert call_count == 1
+    
+    def test_cached_with_fallback_respects_fallback_enabled(self, client):
+        """Testa @cached com fallback respeitando fallback_enabled"""
+        call_count = 0
+        
+        client.fallback_enabled = False
+        
+        @client.cached(ttl=10, fallback="default")
+        def failing_function():
+            nonlocal call_count
+            call_count += 1
+            raise ValueError("Error!")
+        
+        with pytest.raises(ValueError):
+            failing_function()
+        
+        client.fallback_enabled = True  # Restaura
+        assert call_count == 1
