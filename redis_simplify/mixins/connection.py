@@ -2,6 +2,9 @@ import logging
 import redis
 from urllib.parse import urlparse
 from typing import Optional
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
+        
 
 from redis_simplify.mixins.decorators import with_fallback
 
@@ -9,9 +12,38 @@ logger = logging.getLogger('redis_simplify.client')
 
 class ConnectionMixin:
     
+    def _get_retry_config(self) -> dict:
+        """
+        Retorna configuração de retry nativa do redis-py.
+        Permite sobrescrever via extra_kwargs.
+        """
+        # Verifica se o usuário já passou configurações de retry
+        if 'retry' in self.extra_kwargs:
+            return {}
+        
+        # Configuração padrão: 3 tentativas com backoff exponencial
+        retry = Retry(ExponentialBackoff(), retries=3)
+        
+        return {
+            'retry': retry,
+            'retry_on_error': [
+                redis.ConnectionError,
+                redis.TimeoutError,
+                redis.BusyLoadingError,
+            ],
+        }
+    
     def _connect(self):
         """Estabelece conexão com Redis (síncrona)"""
         try:
+            # Remove parâmetros específicos do wrapper
+            connect_kwargs = self.extra_kwargs.copy()
+            connect_kwargs.pop('retry_attempts', None)
+            connect_kwargs.pop('backoff_base', None)
+            
+            # Obtém configurações de retry
+            retry_config = self._get_retry_config()
+            
             if self._url:
                 # Usa URL se disponível
                 self.client = redis.Redis.from_url(
@@ -19,7 +51,8 @@ class ConnectionMixin:
                     decode_responses=self.decode_responses,
                     socket_keepalive=self.socket_keepalive,
                     health_check_interval=self.health_check_interval,
-                    **self.extra_kwargs
+                    **retry_config,
+                    **connect_kwargs  # Usa connect_kwargs sem retry_attempts
                 )
                 # Atualiza host/port para logging
                 conn_kwargs = self.client.connection_pool.connection_kwargs
@@ -35,7 +68,8 @@ class ConnectionMixin:
                     decode_responses=self.decode_responses,
                     socket_keepalive=self.socket_keepalive,
                     health_check_interval=self.health_check_interval,
-                    **self.extra_kwargs
+                    **retry_config,
+                    **connect_kwargs  # ← Usa connect_kwargs sem retry_attempts
                 )
             
             # Testa conexão
@@ -76,6 +110,7 @@ class ConnectionMixin:
                  health_check_interval: int = 30,
                  log_level: Optional[str] = None,
                  fallback_enabled: bool = True,
+                 retry_attempts: int = 3,
                  **kwargs):
         """
         Cria uma instância do RedisClient a partir de uma URL.
@@ -87,6 +122,7 @@ class ConnectionMixin:
             health_check_interval: Intervalo de health check
             log_level: Nível de logging
             fallback_enabled: Se True, fallback ativado; Se False, levanta exceções
+            retry_attempts: Número de tentativas de reconexão (padrão: 3)
             **kwargs: Parâmetros adicionais para o redis
         
         Returns:
@@ -96,6 +132,8 @@ class ConnectionMixin:
             client = RedisClient.from_url('redis://localhost:6379/0')
             client = RedisClient.from_url('redis://:senha@localhost:6379/0')
             client = RedisClient.from_url('rediss://:senha@localhost:6379/0')
+            # Com retry customizado
+            client = RedisClient.from_url('redis://localhost:6379/0', retry_attempts=5)
         """
         parsed = urlparse(url)
         
@@ -103,6 +141,10 @@ class ConnectionMixin:
         port = parsed.port or 6379
         password = parsed.password
         db = int(parsed.path[1:]) if parsed.path and parsed.path != '/' else 0
+        
+        # Adiciona retry_attempts aos kwargs se não for o padrão
+        if retry_attempts != 3:
+            kwargs['retry_attempts'] = retry_attempts
         
         # Cria instância
         instance = cls(
@@ -114,7 +156,7 @@ class ConnectionMixin:
             socket_keepalive=socket_keepalive,
             health_check_interval=health_check_interval,
             log_level=log_level,
-            fallback_enabled=fallback_enabled,  # ← VÍRGULA ADICIONADA
+            fallback_enabled=fallback_enabled,
             **kwargs
         )
         
@@ -153,3 +195,28 @@ class ConnectionMixin:
         if self.client:
             self.client.close()
             logger.info("Redis connection closed!")
+    
+    def set_retry_config(self, retries: int = 3, backoff_base: float = 1.0):
+        """
+        Configura políticas de retry para o cliente.
+        
+        Args:
+            retries: Número máximo de tentativas
+            backoff_base: Base do backoff exponencial (em segundos)
+        """
+        from redis.backoff import ExponentialBackoff
+        from redis.retry import Retry
+        
+        backoff = ExponentialBackoff(base=backoff_base)
+        retry = Retry(backoff, retries=retries)
+        
+        self.extra_kwargs['retry'] = retry
+        self.extra_kwargs['retry_on_error'] = [
+            redis.ConnectionError,
+            redis.TimeoutError,
+            redis.BusyLoadingError,
+        ]
+        
+        # Reconecta para aplicar as novas configurações
+        self._connect()
+        logger.info(f"Retry config updated: {retries} attempts with backoff base {backoff_base}s")

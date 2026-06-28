@@ -3,8 +3,20 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+keywords = [
+    "redis",
+    "wrapper",
+    "cache",
+    "rate-limiting",
+    "distributed-locks",
+    "json",
+    "python",
+    "production",
+    "simplify",
+    "redis-py",
+]
 name = "redis-simplify"
-version = "3.0.2"
+version = "4.0.0"
 description = "Production-ready Redis wrapper with automatic reconnection, JSON helpers, and enterprise features"
 readme = "README.md"
 authors = [
@@ -16,6 +28,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -23,6 +36,9 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Database :: Front-Ends",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
     "redis>=4.0.0"

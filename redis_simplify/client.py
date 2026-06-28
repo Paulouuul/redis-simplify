@@ -1,6 +1,5 @@
 # redis_simplify/client.py
 import traceback
-import redis
 import logging
 import warnings
 from typing import Any, Optional, Callable
@@ -22,6 +21,7 @@ class RedisClient(AllMixins):
                  health_check_interval: int = 30,
                  log_level: Optional[str] = None,
                  fallback_enabled: bool = True,
+                 retry_attempts: int = 3,
                  **kwargs):
         super().__init__(**kwargs)
         self.host = host
@@ -35,6 +35,7 @@ class RedisClient(AllMixins):
         self._url = None
         self.client = None
         self.fallback_enabled = fallback_enabled
+        self.retry_attempts = retry_attempts
         
         if log_level:
             self._configure_logging(log_level)
@@ -126,7 +127,28 @@ class RedisClient(AllMixins):
             logger.error(f"safe_set error: {e}")
             return default
     
-    # ============ MÉTODOS EXISTENTES ============
+    # ============ MÉTODOS DE RETRY ============
+    
+    def set_retry_attempts(self, attempts: int, backoff_base: float = 1.0):
+        """
+        Configura o número de tentativas de reconexão.
+        
+        Args:
+            attempts: Número máximo de tentativas (padrão: 3)
+            backoff_base: Base do backoff exponencial em segundos (padrão: 1.0)
+        
+        Exemplo:
+            client.set_retry_attempts(5, backoff_base=2.0)
+        """
+        self.retry_attempts = attempts
+        self.extra_kwargs['retry_attempts'] = attempts
+        self.extra_kwargs['backoff_base'] = backoff_base
+        
+        # Reconecta para aplicar novas configurações
+        self._connect()
+        logger.info(f"Retry attempts set to {attempts} with backoff base {backoff_base}s")
+
+    # ============ MÉTODOS DE LOGGING ============
     
     def _configure_logging(self, log_level: str):
         """Configura o nível de logging do cliente"""

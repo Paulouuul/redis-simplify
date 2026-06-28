@@ -15,13 +15,15 @@ class TestRedisClientInit:
             password=None,
             decode_responses=True,
             log_level='INFO',
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         assert client.host == 'localhost'
         assert client.port == 6379
         assert client.db == 0
         assert client.fallback_enabled is True
+        assert client.retry_attempts == 3
         assert client.client is not None
         assert client.ping() is True
         
@@ -35,6 +37,7 @@ class TestRedisClientInit:
         assert client.port == 6379
         assert client.db == 0
         assert client.fallback_enabled is True
+        assert client.retry_attempts == 3
         assert client.ping() is True
         
         client.close()
@@ -45,10 +48,25 @@ class TestRedisClientInit:
             host='localhost',
             port=6379,
             db=9,
-            fallback_enabled=False
+            fallback_enabled=False,
+            retry_attempts=3
         )
         
         assert client.fallback_enabled is False
+        assert client.ping() is True
+        
+        client.close()
+    
+    def test_init_with_retry_attempts(self):
+        """Testa criação com retry attempts customizado"""
+        client = RedisClient(
+            host='localhost',
+            port=6379,
+            db=9,
+            retry_attempts=5
+        )
+        
+        assert client.retry_attempts == 5
         assert client.ping() is True
         
         client.close()
@@ -61,7 +79,8 @@ class TestRedisClientInit:
             db=9,
             socket_timeout=5,
             socket_connect_timeout=3,
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         # Verifica se os kwargs foram guardados
@@ -80,13 +99,15 @@ class TestRedisClientFromURL:
         """Testa criação com URL simples"""
         client = RedisClient.from_url(
             'redis://localhost:6379/0',
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         assert client.host == 'localhost'
         assert client.port == 6379
         assert client.db == 0
         assert client.fallback_enabled is True
+        assert client.retry_attempts == 3
         assert client.ping() is True
         
         client.close()
@@ -95,7 +116,8 @@ class TestRedisClientFromURL:
         """Testa parsing de URL com senha"""
         client = RedisClient.from_url(
             'redis://:senha123@localhost:6379/9',
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         assert client.password == 'senha123'
         assert client.host == 'localhost'
@@ -109,10 +131,23 @@ class TestRedisClientFromURL:
         """Testa criação com URL e fallback desabilitado"""
         client = RedisClient.from_url(
             'redis://localhost:6379/9',
-            fallback_enabled=False
+            fallback_enabled=False,
+            retry_attempts=3
         )
         
         assert client.fallback_enabled is False
+        assert client.ping() is True
+        
+        client.close()
+    
+    def test_from_url_with_retry_attempts(self):
+        """Testa criação com URL e retry customizado"""
+        client = RedisClient.from_url(
+            'redis://localhost:6379/9',
+            retry_attempts=5
+        )
+        
+        assert client.retry_attempts == 5
         assert client.ping() is True
         
         client.close()
@@ -134,7 +169,8 @@ class TestRedisClientFromURL:
             'redis://localhost:6379/9',
             decode_responses=False,
             socket_timeout=10,
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         assert client.decode_responses is False
@@ -147,7 +183,8 @@ class TestRedisClientFromURL:
         """Testa URL inválida - cliente deve falhar silenciosamente"""
         client = RedisClient.from_url(
             'redis://localhost:9999/9',
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=1
         )
         
         # Verifica que a conexão falhou
@@ -194,6 +231,18 @@ class TestRedisClientBothMethods:
         
         client.close()
     
+    def test_set_retry_attempts(self):
+        """Testa alterar retry attempts em runtime"""
+        client = RedisClient(host='localhost', port=6379, db=9)
+        assert client.retry_attempts == 3
+        
+        client.set_retry_attempts(5, backoff_base=2.0)
+        assert client.retry_attempts == 5
+        assert client.extra_kwargs.get('backoff_base') == 2.0
+        assert client.ping() is True
+        
+        client.close()
+    
     def test_fallback_behavior(self):
         """Testa comportamento do fallback"""
         # Com fallback habilitado
@@ -217,11 +266,8 @@ class TestRedisClientBothMethods:
             fallback_enabled=False
         )
         
-        # O Redis pode retornar None mesmo com fallback desabilitado
-        # Se a chave não existe, o Redis simplesmente retorna None
-        # Então não levanta exceção
+        # O Redis retorna None para chave inexistente
         value = client_without.get('chave_que_nao_existe')
-        # Para forçar uma exceção, precisamos de um erro de conexão
         assert value is None  # Redis retorna None para chave inexistente
         
         client_without.close()
@@ -237,7 +283,8 @@ class TestRedisClientFallback:
             port=9999,
             db=9,
             fallback_enabled=True,
-            socket_timeout=0.1
+            socket_timeout=0.1,
+            retry_attempts=1
         )
         
         # Deve retornar fallback sem levantar exceção
@@ -257,7 +304,8 @@ class TestRedisClientFallback:
             port=9999,
             db=9,
             fallback_enabled=False,
-            socket_timeout=0.1
+            socket_timeout=0.1,
+            retry_attempts=1
         )
         
         # Deve levantar exceção
@@ -275,10 +323,56 @@ class TestRedisClientFallback:
             fallback_enabled=True
         )
         
-        # O context manager funciona, mas o get não levanta exceção
-        # porque a chave não existe (Redis retorna None)
+        # Com fallback desabilitado no contexto
         with client.fallback_context(False):
+            # Redis retorna None para chave inexistente
             value = client.get('chave_inexistente')
-            assert value is None  # Redis retorna None
+            assert value is None
+        
+        client.close()
+    
+    def test_with_fallback_helper(self):
+        """Testa helper with_fallback"""
+        client = RedisClient(
+            host='localhost',
+            port=6379,
+            db=9,
+            fallback_enabled=False
+        )
+        
+        # Usa with_fallback para operação específica
+        value = client.with_fallback(client.get, 'chave_inexistente', fallback_value="default")
+        assert value == "default"
+        
+        client.close()
+    
+    def test_safe_get_helper(self):
+        """Testa helper safe_get"""
+        client = RedisClient(
+            host='localhost',
+            port=6379,
+            db=9,
+            fallback_enabled=False
+        )
+        
+        # Usa safe_get com fallback
+        value = client.safe_get('chave_inexistente', default="default_value")
+        assert value == "default_value"
+        
+        client.close()
+    
+    def test_safe_set_helper(self):
+        """Testa helper safe_set"""
+        client = RedisClient(
+            host='localhost',
+            port=6379,
+            db=9,
+            fallback_enabled=False
+        )
+        
+        # Usa safe_set com fallback
+        result = client.safe_set('test:key', 'value', default=False)
+        assert result is True
+        client.delete('test:key')
         
         client.close()

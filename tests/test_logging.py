@@ -1,6 +1,7 @@
 """Testes para funcionalidade de logging do RedisClient"""
 import logging
 import pytest
+import time
 from redis_simplify import RedisClient
 
 
@@ -11,7 +12,6 @@ class TestRedisClientLogging:
         """Testa nível de log padrão"""
         client = RedisClient(host="localhost", port=6379, db=9)
         redis_logger = logging.getLogger('redis_simplify.client')
-        # O nível padrão pode ser INFO ou NOTSET (que herda)
         assert redis_logger.level in (logging.INFO, logging.NOTSET)
         client.close()
     
@@ -22,7 +22,8 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="DEBUG",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         assert client.ping() is True
         client.close()
@@ -34,7 +35,8 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="WARNING",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         assert client.ping() is True
         client.close()
@@ -46,7 +48,8 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="ERROR",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         assert client.ping() is True
         client.close()
@@ -58,7 +61,8 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="INVALIDO",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         assert client.ping() is True
         client.close()
@@ -67,13 +71,10 @@ class TestRedisClientLogging:
         """Testa mudar log level depois de criar o cliente"""
         client = RedisClient(host="localhost", port=6379, db=9, fallback_enabled=True)
         
-        # Deve conseguir mudar sem erro
         client.set_log_level("DEBUG")
         client.set_log_level("INFO")
         client.set_log_level("WARNING")
         client.set_log_level("ERROR")
-        
-        # Log level inválido deve usar INFO
         client.set_log_level("INVALIDO")
         
         assert client.ping() is True
@@ -88,26 +89,54 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="DEBUG",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
-        # Operações devem funcionar mesmo com debug ativo
+        # Operações básicas
         client.set("test:debug", "value")
         assert client.get("test:debug") == "value"
         
+        # SET com GET (log deve mostrar)
+        old_value = client.set("test:debug", "new_value", get=True)
+        assert old_value == "value"
+        
+        # JSON
         client.set_json("test:debug:json", {"key": "value"})
         assert client.get_json("test:debug:json") == {"key": "value"}
         
+        # JSON com caminho específico
+        client.set_json_path("test:debug:json", '$.key', "new_value")
+        assert client.get_json_path("test:debug:json", '$.key') == "new_value"
+        
+        # Sets
         client.sadd("test:debug:set", "a", "b")
         assert "a" in client.smembers("test:debug:set")
+        
+        # Sorted Sets com opções avançadas
+        client.zadd("test:debug:zset", {"a": 1, "b": 2, "c": 3})
+        results = client.zrange("test:debug:zset", 0, -1, withscores=True)
+        assert len(results) == 3
         
         client.incr("test:debug:counter")
         client.decr("test:debug:counter")
         
-        client.delete("test:debug", "test:debug:json", "test:debug:set", "test:debug:counter")
+        # Pub/Sub
+        received = []
+        def callback(channel, message):
+            received.append((channel, message))
+        
+        client.subscribe("test:debug:channel", callback)
+        time.sleep(0.1)
+        client.publish("test:debug:channel", "test message")
+        time.sleep(0.1)
+        client.close_pubsubs()
+        
+        # Limpeza
+        client.delete("test:debug", "test:debug:json", "test:debug:set", 
+                      "test:debug:counter", "test:debug:zset")
         client.close()
         
-        # Verifica que DEBUG messages foram geradas
         debug_messages = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert len(debug_messages) > 0
     
@@ -120,23 +149,22 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="INFO",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         caplog.clear()
         
         client.set("test:info", "value")
         client.get("test:info")
+        client.set_json("test:info:json", {"key": "value"})
+        client.get_json("test:info:json")
+        client.zadd("test:info:zset", {"a": 1})
         
-        # Verifica que não há mensagens DEBUG
         debug_messages = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert len(debug_messages) == 0
         
-        # Verifica que há mensagens (INFO ou superior)
-        # Algumas versões do Redis podem não logar INFO para todas as operações
-        assert len(caplog.records) >= 0  # Pode ser 0 se não houver logs INFO
-        
-        client.delete("test:info")
+        client.delete("test:info", "test:info:json", "test:info:zset")
         client.close()
     
     def test_warning_logging_shows_warnings(self, caplog):
@@ -148,15 +176,13 @@ class TestRedisClientLogging:
             port=6379,
             db=9,
             log_level="WARNING",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         caplog.clear()
-        
-        # flushall gera warning
         client.flushall()
         
-        # Deve ter pelo menos uma mensagem WARNING
         warning_messages = [r for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warning_messages) >= 1
         
@@ -166,24 +192,21 @@ class TestRedisClientLogging:
         """Testa que ERROR mostra apenas erros"""
         caplog.set_level(logging.ERROR)
         
-        # Tenta conectar em porta inválida (deve gerar erro)
         client = RedisClient(
             host="localhost",
-            port=9999,  # Porta provavelmente não está rodando Redis
+            port=9999,
             db=9,
             log_level="ERROR",
             fallback_enabled=True,
-            socket_timeout=0.1
+            socket_timeout=0.1,
+            retry_attempts=1
         )
         
         caplog.clear()
-        
-        # Tenta uma operação (vai falhar, mas deve logar como erro)
         client.set("test:error", "value")
         
-        # Deve ter mensagens ERROR
         error_messages = [r for r in caplog.records if r.levelno == logging.ERROR]
-        assert len(error_messages) >= 0  # Pode ou não ter erro dependendo da conexão
+        assert len(error_messages) >= 0
         
         client.close()
     
@@ -197,19 +220,34 @@ class TestRedisClientLogging:
             db=9,
             log_level="ERROR",
             fallback_enabled=False,
-            socket_timeout=0.1
+            socket_timeout=0.1,
+            retry_attempts=1
         )
         
         caplog.clear()
         
-        # Deve levantar exceção e logar erro
         with pytest.raises(Exception):
             client.get("test:error")
         
-        # Deve ter mensagens ERROR
         error_messages = [r for r in caplog.records if r.levelno == logging.ERROR]
         assert len(error_messages) > 0
         
+        client.close()
+    
+    def test_logging_with_retry(self, caplog):
+        """Testa logging com retry nativo"""
+        caplog.set_level(logging.INFO)
+        
+        client = RedisClient(
+            host="localhost",
+            port=6379,
+            db=9,
+            log_level="INFO",
+            retry_attempts=5
+        )
+        
+        assert client.retry_attempts == 5
+        assert client.ping() is True
         client.close()
 
 
@@ -225,57 +263,55 @@ class TestRedisClientLoggingIntegration:
             port=6379,
             db=9,
             log_level="DEBUG",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
-        # Strings
+        # Strings com novas opções
         client.set("test:log:str", "value")
+        client.set("test:log:str", "new_value", get=True)  # SET com GET
         client.get("test:log:str")
         client.exists("test:log:str")
-        client.expire("test:log:str", 60)
+        client.expire("test:log:str", 60, nx=True)  # EXPIRE com NX
         client.incr("test:log:counter")
         client.decr("test:log:counter")
         client.strlen("test:log:str")
         client.append("test:log:str", " extra")
         client.getrange("test:log:str", 0, 5)
         client.setrange("test:log:str", 0, "TEST")
+        client.getdel("test:log:str")  # GETDEL
+        client.getex("test:log:str", ex=60)  # GETEX
         
-        # JSON
-        client.set_json("test:log:json", {"name": "test"})
-        client.get_json("test:log:json")
+        # JSON avançado
+        client.set_json("test:log:json", {"name": "test", "tags": ["a", "b"]})
+        client.set_json_path("test:log:json", '$.name', "updated")
+        client.get_json_path("test:log:json", '$.name')
+        client.arrappend_json("test:log:json", '$.tags', "c")
+        client.arrlen_json("test:log:json", '$.tags')
         
-        # Sets
-        client.sadd("test:log:set", "a", "b", "c")
-        client.smembers("test:log:set")
-        client.sismember("test:log:set", "a")
-        client.scard("test:log:set")
-        client.srem("test:log:set", "a")
+        # Keys com novas opções
+        client.copy("test:log:str", "test:log:copy")
+        client.touch("test:log:str")
         
-        # Hashes
-        client.hset("test:log:hash", "field1", "value1")
-        client.hget("test:log:hash", "field1")
-        client.hgetall("test:log:hash")
+        # Sorted Sets avançados
+        client.zadd("test:log:zset", {"a": 1, "b": 2, "c": 3}, gt=True)
+        client.zrange("test:log:zset", 1, 3, byscore=True, withscores=True)
+        client.zmscore("test:log:zset", ["a", "b", "c"])
         
-        # Lists
-        client.lpush("test:log:list", "x", "y")
-        client.rpush("test:log:list", "z")
-        client.lrange("test:log:list", 0, -1)
+        # SCAN com tipo
+        client.scan(match="test:log:*", type='string')
         
-        # Sorted Sets
-        client.zadd("test:log:zset", {"a": 1, "b": 2, "c": 3})
-        client.zrange("test:log:zset", 0, -1, withscores=True)
-        client.zscore("test:log:zset", "a")
-        client.zcard("test:log:zset")
-        client.zrem("test:log:zset", "a")
+        # Admin
+        client.info('stats')
+        client.dbsize()
+        client.memory_usage("test:log:str")
         
-        # Keys
-        client.ttl("test:log:str")
-        client.delete("test:log:str", "test:log:counter", "test:log:json")
-        client.delete("test:log:set", "test:log:hash", "test:log:list", "test:log:zset")
+        # Limpeza
+        client.delete("test:log:str", "test:log:copy", "test:log:counter")
+        client.delete("test:log:json", "test:log:zset")
         
         client.close()
         
-        # Verifica que debug messages foram geradas
         debug_messages = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert len(debug_messages) > 0
     
@@ -288,29 +324,33 @@ class TestRedisClientLoggingIntegration:
             port=6379,
             db=9,
             log_level="DEBUG",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         client.enable_metrics()
         
-        # Executa operações
         for i in range(5):
             client.set(f"test:metric:{i}", f"value{i}")
             client.get(f"test:metric:{i}")
+        
+        client.set_json("test:metric:json", {"counter": i})
+        client.zadd("test:metric:zset", {"a": 1, "b": 2})
         
         metrics = client.get_metrics()
         assert metrics["enabled"] is True
         assert "set" in metrics["commands"]
         assert "get" in metrics["commands"]
+        assert "set_json" in metrics["commands"]
+        assert "zadd" in metrics["commands"]
         
-        # Limpa
         for i in range(5):
             client.delete(f"test:metric:{i}")
+        client.delete("test:metric:json", "test:metric:zset")
         
         client.disable_metrics()
         client.close()
         
-        # Verifica que debug messages foram geradas
         debug_messages = [r for r in caplog.records if r.levelno == logging.DEBUG]
         assert len(debug_messages) > 0
     
@@ -323,17 +363,21 @@ class TestRedisClientLoggingIntegration:
             port=6379,
             db=9,
             log_level="INFO",
-            fallback_enabled=True
+            fallback_enabled=True,
+            retry_attempts=3
         )
         
         caplog.clear()
         
-        # Comandos administrativos
         client.info()
+        client.info('stats')
+        client.info_sections()
         client.dbsize()
+        client.scan(match="*", count=10)
+        client.slowlog(5)
+        client.client_list()
         client.flushdb()
         
-        # Deve ter mensagens INFO
         info_messages = [r for r in caplog.records if r.levelno == logging.INFO]
         assert len(info_messages) > 0
         
