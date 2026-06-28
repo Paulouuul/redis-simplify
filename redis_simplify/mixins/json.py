@@ -94,13 +94,14 @@ class JSONMixin:
     
     @recorded()
     @with_fallback(default_return=None)
-    def get_json(self, key: str, path: str = '$') -> Optional[Any]:
+    def get_json(self, key: str, path: str = '$', unwrap: bool = True) -> Optional[Any]:
         """
         Recupera dados JSON usando RedisJSON ou fallback manual.
         
         Args:
             key: Nome da chave
             path: Caminho JSON (padrão: '$')
+            unwrap: Se True, desempacota resultados únicos (padrão: True)
         """
         if not self._ensure_connection():
             raise redis.ConnectionError("Redis connection failed")
@@ -116,7 +117,9 @@ class JSONMixin:
         
         try:
             result = self.client.json().get(key, path)
-            return self._unwrap_json_result(result)
+            if unwrap:
+                return self._unwrap_json_result(result)
+            return result
         except Exception as e:
             logger.error(f"Error getting JSON for {key}: {e}")
             # Fallback manual em caso de erro
@@ -155,13 +158,14 @@ class JSONMixin:
     
     @recorded()
     @with_fallback(default_return=None)
-    def get_json_path(self, key: str, path: str = '$') -> Optional[Any]:
+    def get_json_path(self, key: str, path: str = '$', unwrap: bool = True) -> Optional[Any]:
         """
         Obtém valor de um caminho JSON específico.
         
         Args:
             key: Nome da chave
             path: Caminho JSON (ex: '$.user.name')
+            unwrap: Se True, desempacota resultados únicos (padrão: True)
         """
         if not self._ensure_connection():
             raise redis.ConnectionError("Redis connection failed")
@@ -172,7 +176,9 @@ class JSONMixin:
         
         try:
             result = self.client.json().get(key, path)
-            return self._unwrap_json_result(result)
+            if unwrap:
+                return self._unwrap_json_result(result)
+            return result
         except Exception as e:
             logger.error(f"Error getting JSON path {path} for {key}: {e}")
             return None
@@ -225,7 +231,7 @@ class JSONMixin:
         
         try:
             result = self.client.json().arrappend(key, path, *values)
-            return self._unwrap_json_result(result) if result is not None else 0
+            return result if result is not None else 0
         except Exception as e:
             logger.error(f"Error appending to JSON array for {key}: {e}")
             return 0
@@ -333,13 +339,14 @@ class JSONMixin:
     
     @recorded()
     @with_fallback(default_return={})
-    def mget_json(self, keys: list, path: str = '$') -> dict:
+    def mget_json(self, keys: list, path: str = '$', unwrap: bool = True) -> dict:
         """
         Obtém valores JSON de múltiplas chaves.
         
         Args:
             keys: Lista de chaves
             path: Caminho JSON
+            unwrap: Se True, desempacota resultados únicos (padrão: True)
         """
         if not self._ensure_connection():
             raise redis.ConnectionError("Redis connection failed")
@@ -352,7 +359,10 @@ class JSONMixin:
             result = {}
             for key in keys:
                 value = self.client.json().get(key, path)
-                result[key] = self._unwrap_json_result(value)
+                if unwrap:
+                    result[key] = self._unwrap_json_result(value)
+                else:
+                    result[key] = value
             return result
         except Exception as e:
             logger.error(f"Error getting JSON mget: {e}")
