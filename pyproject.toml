@@ -16,7 +16,7 @@ keywords = [
     "redis-py",
 ]
 name = "redis-simplify"
-version = "4.0.0"
+version = "4.1.0"
 description = "Production-ready Redis wrapper with automatic reconnection, JSON helpers, and enterprise features"
 readme = "README.md"
 authors = [
