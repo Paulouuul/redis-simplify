@@ -61,22 +61,3 @@ class CacheMixin:
         
         logger.info(f"Deleted {deleted} keys matching pattern '{pattern}'")
         return deleted
-
-    def scan_iter(self, match: Optional[str] = None, count: int = 100):
-        """
-        Iterator para varrer chaves sem carregar tudo na memória.
-        
-        Exemplo:
-            for key in client.scan_iter(match="user:*", count=100):
-                print(key)
-        """
-        if not self._ensure_connection():
-            raise redis.ConnectionError("Redis connection failed")
-        
-        cursor = 0
-        while True:
-            cursor, keys = self.scan(cursor=cursor, match=match, count=count)
-            for key in keys:
-                yield key
-            if cursor == 0:
-                break
