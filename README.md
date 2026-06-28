@@ -17,6 +17,18 @@ Stop writing boilerplate. Start building faster.
 ---
 ## Why redis-simplify?
 
+Many projects repeatedly implement:
+
+* Redis connection setup
+* Health checks
+* Reconnection logic
+* JSON serialization and deserialization
+* Logging
+* Defensive exception handling
+* Fallback control with try/except blocks
+
+`redis-simplify` centralizes these concerns into a small reusable wrapper while preserving the familiar Redis workflow provided by `redis-py`.
+
 | Problem | Solution |
 |---|---|
 |  Connection failures break your app | Automatic reconnection |
@@ -72,7 +84,26 @@ Stop writing boilerplate. Start building faster.
 - **Client list** — Active connections
 - **Flush operations** — Async/non-blocking
 
+### JSON Advanced
+- **Path operations** — `set_json_path()`, `get_json_path()`
+- **Array operations** — `arrappend_json()`, `arrlen_json()`, `arrpop_json()`
+- **Type operations** — `type_json()`, `clear_json()`, `delete_json()`
+- **Multiple keys** — `mget_json()`
+
 ---
+
+## Redis Compatibility
+
+| Version | Support |
+|---|---|
+| **8.0+** | Full support (including `PUBLISH NOHISTORY`) |
+| **7.0+** | Full support (including `EXPIRE NX/XX/GT/LT`) |
+| **6.2+** | Full support (including `SET GET`, `ZRANGE BYSCORE`) |
+| **6.0+** | Basic support (including `SCAN TYPE`) |
+| **3.0+** | Basic support (including `ZADD NX/XX`) |
+| **2.8+** | Minimal support (basic commands only) |
+
+**Recommended:** Redis 6.2+ for all features.
 
 ## Installation
 
@@ -125,7 +156,7 @@ client = RedisClient(
 
 All configuration is explicit via constructor parameters:
 
-## Traditional parameters
+### Traditional parameters
 ```python
 from redis_simplify import RedisClient
 
@@ -137,13 +168,67 @@ client = RedisClient(
     log_level=None      # Default: None (inherits from root logger)
 )
 ```
-# Or via URL (recommended for 12-factor apps)
+### Or via URL (recommended for 12-factor apps)
 ```python
 from redis_simplify import RedisClient
 
 client = RedisClient.from_url(
     "redis://:password@localhost:6379/0",
     log_level="INFO"
+)
+```
+
+### Dynamic URL Update
+
+You can change the Redis connection URL at runtime:
+```python
+# Update connection to a different Redis instance
+client.update_url("redis://:newpassword@newhost:6380/1")
+
+# Or with additional parameters
+client.update_url(
+    "redis://:password@localhost:6379/0",
+    socket_timeout=5.0
+)
+```
+
+### Advanced Connection Configuration
+
+#### Connection Pool
+```python
+client = RedisClient(
+    host="localhost",
+    max_connections=20,        # Pool size (default: 10)
+    socket_timeout=5.0,        # Operation timeout
+    socket_connect_timeout=2.0 # Connection timeout
+)
+```
+### Retry Configuration
+
+```python
+# Via constructor
+client = RedisClient(
+    host="localhost",
+    retry_attempts=5,          # Default: 3
+    backoff_base=1.0           # Exponential backoff base
+)
+
+# Programmatic
+client.set_retry_config(retries=5, backoff_base=0.5)
+```
+### Timeout Configuration
+```python
+client.set_timeouts(
+    socket_timeout=3.0,
+    socket_connect_timeout=1.0,
+    retry_on_timeout=True
+)
+```
+### SSL/TLS (Redis over TLS)
+```python
+client = RedisClient.from_url(
+    "rediss://:password@localhost:6379/0",
+    ssl_cert_reqs="required"
 )
 ```
 
@@ -336,8 +421,10 @@ DEBUG:redis_simplify.client:Get test: hello world...
 
 | Method                                 | Description             |
 | -------------------------------------- | ----------------------- |
-| `set(key, value, expire_seconds=None, nx=False, xx=False)` | Set a value with options |
-| `get(key)`                             | Retrieve a value        |
+| `set(key, value, expire_seconds=None, nx=False, xx=False, get=False, keepttl=False)` | Set with advanced options |
+| `get(key, delete=False)`                | Retrieve (optionally delete) |
+| `getdel(key)`                          | Get and delete (Redis 6.2+) |
+| `getex(key, ex=None, px=None, exat=None, pxat=None, persist=False)` | Get and set expiration (Redis 6.2+) |
 | `incr(key)`                            | Increment a value       |
 | `decr(key)`                            | Decrement a value       |
 | `append(key, value)`                   | Append to a string      |
@@ -353,16 +440,23 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | ------------------------------------------- | ----------------------------------- |
 | `delete(*keys)`                             | Delete one or more keys             |
 | `exists(key)`                               | Check if key exists                 |
-| `expire(key, seconds)`                      | Set expiration in seconds           |
-| `expireat(key, timestamp)`                  | Set expiration at Unix timestamp    |
+| `expire(key, seconds, nx=False, xx=False, gt=False, lt=False)` | Set expiration with options (Redis 7.0+) |
+| `expireat(key, timestamp, nx=False, xx=False, gt=False, lt=False)` | Set expiration at Unix timestamp |
+| `expiretime(key)`                           | Get expiration Unix timestamp (Redis 7.0+) |
+| `pexpiretime(key)`                          | Get expiration Unix timestamp in ms (Redis 7.0+) |
 | `ttl(key)`                                  | Get time to live in seconds         |
 | `pttl(key)`                                 | Get time to live in milliseconds    |
 | `persist(key)`                              | Remove expiration from key          |
+| `touch(*keys)`                              | Update access time (Redis 3.2.1+)   |
 | `rename(old_key, new_key)`                  | Rename a key                        |
 | `renamenx(old_key, new_key)`                | Rename if new key doesn't exist     |
+| `copy(source, destination, replace=False, db=None)` | Copy key (Redis 6.2+)      |
 | `type(key)`                                 | Get key type                        |
+| `object_idletime(key)`                      | Get idle time (Redis 2.2.3+)        |
+| `object_refcount(key)`                      | Get reference count (Redis 2.2.3+)  |
+| `object_encoding(key)`                      | Get internal encoding (Redis 2.2.3+) |
 | `keys(pattern="*")`                         | Get keys matching pattern (⚠️ use with caution) |
-| `scan_iter(match=None, count=100)`          | Iterate keys without loading all    |
+| `scan_iter(match=None, count=100, type=None)` | Iterate keys with type filter (Redis 6.0+) |
 | `randomkey()`                               | Get random key from database        |
 
 ---
@@ -371,8 +465,28 @@ DEBUG:redis_simplify.client:Get test: hello world...
 
 | Method                                     | Description                   |
 | ------------------------------------------ | ----------------------------- |
-| `set_json(key, data, expire_seconds=None)` | Store a dictionary as JSON    |
-| `get_json(key)`                            | Retrieve and deserialize JSON |
+| `set_json(key, data, expire_seconds=None)` | Store dictionary as JSON (auto-detects RedisJSON) |
+| `get_json(key)`                            | Retrieve and deserialize JSON (auto-detects RedisJSON) |
+
+> **Note:** Basic JSON methods (`set_json`, `get_json`) automatically detect RedisJSON support and fall back to manual JSON serialization if not available.
+
+---
+
+### JSON Advanced
+
+| Method                                      | Description                         |
+| ------------------------------------------- | ----------------------------------- |
+| `set_json_path(key, path, value)`           | Set value at JSON path              |
+| `get_json_path(key, path)`                  | Get value from JSON path            |
+| `delete_json(key, path='$')`                | Delete JSON path                    |
+| `arrappend_json(key, path, *values)`        | Append items to JSON array          |
+| `arrlen_json(key, path='$')`                | Get JSON array length               |
+| `arrpop_json(key, path='$', index=-1)`      | Pop item from JSON array            |
+| `clear_json(key, path='$')`                 | Clear JSON array/object             |
+| `type_json(key, path='$')`                  | Get JSON type at path               |
+| `mget_json(keys, path='$')`                 | Get JSON from multiple keys         |
+
+> **⚠️ Important:** Advanced JSON methods **REQUIRE** the RedisJSON module. Unlike basic methods, they do NOT fall back to manual JSON serialization. If RedisJSON is not available, they return safe defaults (`False`, `0`, `None`, or `{}`).
 
 ---
 
@@ -407,17 +521,36 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `lrange(key, start, end)` | Retrieve a range of values   |
 
 ---
+
 ### Sorted Sets (ZSET)
+
 | Method                                      | Description                    |
 | ------------------------------------------- | ------------------------------ |
-| `zadd(key, mapping)`                        | Add members with scores        |
-| `zrange(key, start, stop, withscores=False)`| Retrieve members by rank        |
+| `zadd(key, mapping, nx=False, xx=False, gt=False, lt=False, ch=False, incr=False)` | Add members with options |
+| `zrange(key, start, stop, withscores=False)` | Retrieve members by rank (legacy) |
+| `zrange_legacy(key, start, stop, withscores=False)` | Legacy zrange for compatibility |
 | `zrevrange(key, start, stop, withscores=False)` | Retrieve members in reverse |
 | `zrank(key, member)`                        | Get member rank                |
+| `zrevrank(key, member)`                     | Get member rank (reverse)      |
 | `zscore(key, member)`                       | Get member score               |
 | `zincrby(key, amount, member)`              | Increment member score         |
 | `zrem(key, *members)`                       | Remove members                 |
 | `zcard(key)`                                | Get member count               |
+| `zcount(key, min_score, max_score)`         | Count members by score range   |
+| `zrangebyscore(key, min, max, withscores=False, offset=None, count=None)` | Get by score range (legacy) |
+| `zrevrangebyscore(key, max, min, withscores=False, offset=None, count=None)` | Get by score range (reverse) |
+| `zrangebylex(key, min_lex, max_lex, offset=None, count=None)` | Get by lexicographic range |
+| `zlexcount(key, min_lex, max_lex)`          | Count by lexicographic range   |
+| `zremrangebyrank(key, start, stop)`         | Remove by rank                 |
+| `zremrangebyscore(key, min_score, max_score)` | Remove by score range        |
+| `zremrangebylex(key, min_lex, max_lex)`     | Remove by lexicographic range  |
+| `zunionstore(dest, keys, weights=None, aggregate='SUM')` | Union of sorted sets |
+| `zinterstore(dest, keys, weights=None, aggregate='SUM')` | Intersection of sorted sets |
+| `zdiff(keys, withscores=False)`             | Difference of sorted sets (Redis 6.2+) |
+| `zdiffstore(dest, keys)`                    | Store difference (Redis 6.2+)  |
+| `zmscore(key, members)`                     | Get scores for multiple members (Redis 6.2+) |
+
+---
 
 ### Cache Utilities
 | Method                                          | Description                         |
@@ -425,7 +558,6 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `get_or_set(key, func, ttl=None)`               | Get from cache or set from function |
 | `get_or_set_json(key, func, ttl=None)`          | JSON version of get_or_set          |
 | `delete_pattern(pattern, batch_size=1000)`      | Delete all keys matching pattern    |
-| `scan_iter(match=None, count=100)`              | Iterate keys without loading all    |
 
 ### Rate Limiting
 | Method                                                  | Description                       |
@@ -443,9 +575,19 @@ DEBUG:redis_simplify.client:Get test: hello world...
 ### Pub/Sub
 | Method                                      | Description                         |
 | ------------------------------------------- | ----------------------------------- |
-| `publish(channel, message)`                 | Publish message to channel          |
-| `publish_json(channel, data)`               | Publish JSON to channel             |
+| `publish(channel, message, nohistory=False)` | Publish message (Redis 8.0+ nohistory) |
+| `publish_json(channel, data, nohistory=False)` | Publish JSON to channel           |
 | `subscribe(channel, callback, pattern=False)` | Subscribe to channel with callback |
+| `unsubscribe(channel=None)`                 | Unsubscribe from channel(s)        |
+| `spublish(channel, message)`                | Publish to sharded channel (Redis 7.0+) |
+| `ssubscribe(channel, callback)`             | Subscribe to sharded channel (Redis 7.0+) |
+| `pubsub_channels(pattern=None)`             | List active channels (Redis 2.8+)  |
+| `pubsub_numsub(*channels)`                  | Get subscriber count (Redis 2.8+)  |
+| `pubsub_numpat()`                           | Get pattern subscription count (Redis 2.8+) |
+| `close_pubsubs()`                           | Close all active subscriptions     |
+| `get_active_subscriptions()`                | Get number of active subscriptions |
+| `get_active_channels()`                     | Get list of active channels        |
+
 
 ### Batch Operations
 | Method                                      | Description                         |
@@ -477,16 +619,27 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `@cached(ttl=300, key_prefix="")`           | Automatic caching decorator         |
 | `@retry(max_attempts=3, delay=0.5)`         | Retry with exponential backoff      |
 
-### Utilities
+### Connection Management
 
 | Method                                   | Description                |
 | ---------------------------------------- | -------------------------- |
 | `ping()`                                 | Verify connectivity        |
-| `pipeline()`                             | Create a Redis pipeline    |
-| `scan(cursor=0, match=None, count=None)` | Iterate keys using SCAN    |
-| `flushall()`                             | Remove all Redis databases |
 | `close()`                                | Close the connection       |
 | `set_log_level(level)`                   | Change log level at runtime|
+
+### Connection Configuration
+
+| Method                                   | Description                |
+| ---------------------------------------- | -------------------------- |
+| `update_url(url, **kwargs)`              | Update connection URL at runtime |
+| `set_retry_config(retries, backoff_base)`| Configure retry policy     |
+| `set_timeouts(socket_timeout, socket_connect_timeout, retry_on_timeout)` | Configure timeouts |
+
+### Pipeline
+
+| Method                                   | Description                |
+| ---------------------------------------- | -------------------------- |
+| `pipeline()`                             | Create a Redis pipeline (context manager) |
 
 ### Admin & Monitoring
 
@@ -494,12 +647,21 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | ------------------------------- | ----------------------------------- |
 | `info(section=None)`            | Get Redis server information        |
 | `info_sections()`               | List available info sections        |
+| `scan(cursor=0, match=None, count=None)` | Iterate keys using SCAN    |
 | `dbsize()`                      | Get number of keys in current DB    |
 | `memory_usage(key, samples=0)`  | Get memory usage of a key           |
 | `slowlog(count=10)`             | Get slow queries log                |
 | `client_list()`                 | List connected clients              |
 | `flushdb(async_mode=False)`     | Clear current database              |
 | `flushall(async_mode=False)`    | Clear all databases (careful!)      |
+| `command_info(command=None)`    | Get info about Redis commands (7.0+)|
+| `command_list(pattern=None)`    | List available Redis commands (7.0+)|
+| `config_get(parameter)`         | Get Redis configuration parameter   |
+| `config_set(parameter, value)`  | Set Redis configuration parameter   |
+| `config_resetstat()`            | Reset Redis statistics              |
+| `lastsave()`                    | Get last RDB save timestamp         |
+| `latency(subcommand, *args)`    | Get latency information (7.0+)      |
+| `time()`                        | Get current Redis server time       |
 
 ---
 
@@ -708,6 +870,43 @@ users = client.mget(["user:1", "user:2", "user:3"])
 print(users)  # {"user:1": "John", "user:2": "Jane", "user:3": "Bob"}
 ```
 
+#### JSON Advanced Examples
+
+```python
+# Store complex JSON
+client.set_json("user:1", {
+    "name": "João",
+    "age": 30,
+    "tags": ["python", "redis"]
+})
+
+# Update specific field
+client.set_json_path("user:1", '$.age', 31)
+
+# Get specific field
+age = client.get_json_path("user:1", '$.age')
+print(age)  # 31
+
+# Add to array
+client.arrappend_json("user:1", '$.tags', "fastapi", "docker")
+
+# Get array length
+length = client.arrlen_json("user:1", '$.tags')
+print(length)  # 4
+
+# Remove from array
+removed = client.arrpop_json("user:1", '$.tags')
+print(removed)  # "docker"
+
+# Get JSON type
+type = client.type_json("user:1", '$.name')
+print(type)  # "string"
+
+# Get from multiple keys
+users = client.mget_json(["user:1", "user:2"], '$.name')
+print(users)  # {"user:1": "João", "user:2": "Maria"}
+```
+
 ## Shared Instance Pattern
 
 `redis-simplify` does not enforce a Singleton pattern.
@@ -838,19 +1037,6 @@ def safe_get_list(key):
 
 ---
 
-## Why redis-simplify?
-
-Many projects repeatedly implement:
-
-* Redis connection setup
-* Health checks
-* Reconnection logic
-* JSON serialization and deserialization
-* Logging
-* Defensive exception handling
-
-`redis-simplify` centralizes these concerns into a small reusable wrapper while preserving the familiar Redis workflow provided by `redis-py`.
-
 ---
 
 ## Differences from redis-py
@@ -859,7 +1045,11 @@ Many projects repeatedly implement:
 | ------------------- | ------------------- | ---------------------------------- |
 | Exception handling  | Raises exceptions   | Logs and returns fallback values   |
 | Reconnection        | Manual handling     | Automatic                          |
+| URL update at runtime | Manual            | `update_url()` method              |
 | JSON helpers        | No built-in helpers | `set_json()` / `get_json()`        |
+| JSON path operations| Manual              | `set_json_path()`, `get_json_path()` |
+| JSON array ops      | Manual              | `arrappend_json()`, `arrpop_json()` |
+| JSON type info      | Manual              | `type_json()`                      |
 | Configuration       | Highly flexible     | Explicit constructor configuration |
 | Logging control     | Basic               | Configurable log levels            |
 | Convenience wrapper | No                  | Yes                                |
@@ -878,6 +1068,22 @@ Many projects repeatedly implement:
 | Fallback control    | Manual (try/except) | Built-in global, per-method, context |
 | Safe operations     | Manual              | `safe_get()`, `safe_set()`         |
 | Decorators          | No                  | `@cached`, `@retry`, `@with_fallback` |
+| Connection pooling  | Manual           | Built-in with `max_connections` |
+| Retry policy        | Manual          | Built-in exponential backoff   |
+| Timeout config   | Manual          | `set_timeouts()` method        |
+| URL update at runtime | Manual      | `update_url()` method          |
+| SSL/TLS support  | Manual          | Built-in with `rediss://`      |
+| Pub/Sub management | Manual          | `close_pubsubs()`, `get_active_subscriptions()` |
+| Sharded Pub/Sub | Manual          | `spublish()`, `ssubscribe()`   |
+| Object commands | Manual          | `object_*()` methods           |
+| Copy command    | Manual          | `copy()` method                |
+| Touch command   | Manual          | `touch()` method               |
+| Expire options  | Manual          | `expire()` with `nx/xx/gt/lt`  |
+| Getdel/Getex    | Manual          | `getdel()`, `getex()`          |
+| Full ZSET operations | Basic       | Full ZSET with options         |
+| `publish` with `nohistory` | Manual | Built-in (Redis 8.0+)         |
+| JSON auto-detection | No          | Automatic RedisJSON detection |
+| JSON graceful fallback | No       | Manual JSON fallback when RedisJSON unavailable |
 
 ---
 
@@ -896,6 +1102,55 @@ client = RedisClient.from_url(redis_url, log_level="INFO")
 ```
 
 ---
+
+## Use `update_url()` for dynamic reconfiguration
+
+For applications that need to switch Redis instances at runtime (e.g., blue-green deployments, failover, A/B testing):
+
+```python
+# Initial connection to primary
+client = RedisClient.from_url("redis://primary:6379/0")
+
+# Later, switch to a different instance
+client.update_url("redis://secondary:6380/1")
+
+# Works with authentication and custom timeouts
+client.update_url(
+    "redis://:newpassword@newhost:6380/1",
+    socket_timeout=10.0,
+    socket_connect_timeout=5.0
+)
+
+# Great for handling Redis failover scenarios
+try:
+    client.ping()
+except Exception:
+    logger.warning("Primary Redis down, switching to backup")
+    client.update_url(os.getenv("REDIS_BACKUP_URL"))
+```
+
+## Configure retry policies for network resilience
+
+For environments with different network characteristics:
+
+```python
+# Aggressive retry for unstable networks (e.g., cloud, cross-region)
+client.set_retry_config(
+    retries=5,
+    backoff_base=2.0
+)
+
+# Conservative retry for low-latency environments (e.g., local, same region)
+client.set_retry_config(
+    retries=2,
+    backoff_base=0.5
+)
+
+# Custom retry for specific operations using decorator
+@client.retry(max_attempts=3, delay=0.5)
+def critical_operation():
+    return client.get("critical_key")
+```
 
 ## Enable metrics for production monitoring
 
@@ -1482,21 +1737,6 @@ This project is licensed under the MIT License.
 **Paulo Ricardo Tebet Lyrio**
 
 GitHub: https://github.com/Paulouuul/redis-simplify
-
-
-## Why redis-simplify?
-
-Many projects repeatedly implement:
-
-* Redis connection setup
-* Health checks
-* Reconnection logic
-* JSON serialization and deserialization
-* Logging
-* Defensive exception handling
-* Fallback control with try/except blocks
-
-`redis-simplify` centralizes these concerns into a small reusable wrapper while preserving the familiar Redis workflow provided by `redis-py`.
 
 ## 💖 Support the Project
 
