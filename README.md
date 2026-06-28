@@ -15,6 +15,7 @@ Stop writing boilerplate. Start building faster.
 > Built on top of `redis-py`. Not a replacement — a force multiplier.
 
 ---
+
 ## Why redis-simplify?
 
 Many projects repeatedly implement:
@@ -195,6 +196,7 @@ client.update_url(
 ### Advanced Connection Configuration
 
 #### Connection Pool
+
 ```python
 client = RedisClient(
     host="localhost",
@@ -203,6 +205,7 @@ client = RedisClient(
     socket_connect_timeout=2.0 # Connection timeout
 )
 ```
+
 ### Retry Configuration
 
 ```python
@@ -216,7 +219,9 @@ client = RedisClient(
 # Programmatic
 client.set_retry_config(retries=5, backoff_base=0.5)
 ```
+
 ### Timeout Configuration
+
 ```python
 client.set_timeouts(
     socket_timeout=3.0,
@@ -224,7 +229,9 @@ client.set_timeouts(
     retry_on_timeout=True
 )
 ```
+
 ### SSL/TLS (Redis over TLS)
+
 ```python
 client = RedisClient.from_url(
     "rediss://:password@localhost:6379/0",
@@ -466,7 +473,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | Method                                     | Description                   |
 | ------------------------------------------ | ----------------------------- |
 | `set_json(key, data, expire_seconds=None)` | Store dictionary as JSON (auto-detects RedisJSON) |
-| `get_json(key)`                            | Retrieve and deserialize JSON (auto-detects RedisJSON) |
+| `get_json(key, unwrap=True)`               | Retrieve and deserialize JSON (auto-detects RedisJSON, with unwrap control) |
 
 > **Note:** Basic JSON methods (`set_json`, `get_json`) automatically detect RedisJSON support and fall back to manual JSON serialization if not available.
 
@@ -477,16 +484,17 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | Method                                      | Description                         |
 | ------------------------------------------- | ----------------------------------- |
 | `set_json_path(key, path, value)`           | Set value at JSON path              |
-| `get_json_path(key, path)`                  | Get value from JSON path            |
+| `get_json_path(key, path, unwrap=True)`     | Get value from JSON path (with unwrap control) |
 | `delete_json(key, path='$')`                | Delete JSON path                    |
 | `arrappend_json(key, path, *values)`        | Append items to JSON array          |
 | `arrlen_json(key, path='$')`                | Get JSON array length               |
 | `arrpop_json(key, path='$', index=-1)`      | Pop item from JSON array            |
 | `clear_json(key, path='$')`                 | Clear JSON array/object             |
 | `type_json(key, path='$')`                  | Get JSON type at path               |
-| `mget_json(keys, path='$')`                 | Get JSON from multiple keys         |
+| `mget_json(keys, path='$', unwrap=True)`    | Get JSON from multiple keys (with unwrap control) |
 
 > **⚠️ Important:** Advanced JSON methods **REQUIRE** the RedisJSON module. Unlike basic methods, they do NOT fall back to manual JSON serialization. If RedisJSON is not available, they return safe defaults (`False`, `0`, `None`, or `{}`).
+
 
 ---
 
@@ -552,7 +560,8 @@ DEBUG:redis_simplify.client:Get test: hello world...
 
 ---
 
-### Cache Utilities
+### Cache 
+
 | Method                                          | Description                         |
 | ----------------------------------------------- | ----------------------------------- |
 | `get_or_set(key, func, ttl=None)`               | Get from cache or set from function |
@@ -560,6 +569,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `delete_pattern(pattern, batch_size=1000)`      | Delete all keys matching pattern    |
 
 ### Rate Limiting
+
 | Method                                                  | Description                       |
 | ------------------------------------------------------- | --------------------------------- |
 | `rate_limit_check(key, max_requests, window_seconds)`   | Check if action is allowed        |
@@ -567,12 +577,14 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `rate_limit_reset(key, window_seconds)`                 | Get seconds until reset           |
 | `run_with_rate_limit(operation, rate_key, max_requests, window_seconds, *args, **kwargs)` | Execute operation with automatic rate limit |
 
-### Distributed Lock
+### Distributed 
+
 | Method                                      | Description                         |
 | ------------------------------------------- | ----------------------------------- |
 | `lock(name, timeout=10, blocking_timeout=None)` | Context manager for distributed lock |
 
 ### Pub/Sub
+
 | Method                                      | Description                         |
 | ------------------------------------------- | ----------------------------------- |
 | `publish(channel, message, nohistory=False)` | Publish message (Redis 8.0+ nohistory) |
@@ -590,6 +602,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 
 
 ### Batch Operations
+
 | Method                                      | Description                         |
 | ------------------------------------------- | ----------------------------------- |
 | `batch_get(keys)`                           | Get multiple keys via pipeline      |
@@ -597,6 +610,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `batch_delete(keys)`                        | Delete multiple keys via pipeline   |
 
 ### Utils
+
 | Method                                          | Description                         |
 | ----------------------------------------------- | ----------------------------------- |
 | `mget(keys)`                                    | Get multiple keys at once           |
@@ -605,6 +619,7 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `copy_key(source, destination, replace=False)`  | Copy key to another location        |
 
 ### Health & Metrics
+
 | Method                          | Description                         |
 | ------------------------------- | ----------------------------------- |
 | `health_check()`                | Check Redis server health           |
@@ -614,10 +629,14 @@ DEBUG:redis_simplify.client:Get test: hello world...
 | `reset_metrics()`               | Reset all metrics                   |
 
 ### Decorators
+
 | Method                                      | Description                         |
 | ------------------------------------------- | ----------------------------------- |
-| `@cached(ttl=300, key_prefix="")`           | Automatic caching decorator         |
-| `@retry(max_attempts=3, delay=0.5)`         | Retry with exponential backoff      |
+| `@cached(ttl=300, key_prefix="", use_json=True, fallback=None)` | Automatic caching decorator |
+| `@retry(max_attempts=3, delay=0.5, backoff=2, fallback=None)` | Retry with exponential backoff |
+| `@with_fallback(default_return=None)`       | Apply fallback to any function     |
+| `@no_fallback`                              | Disable fallback for a function    |
+| `@fallback_value(value)`                    | Return specific value on error     |
 
 ### Connection Management
 
@@ -761,12 +780,14 @@ with client.lock("payment_processing", timeout=10):
 #### Rate Limiting
 
 ##### Manual check
+
 ```python
 if client.rate_limit_check(f"api:user:{user_id}", 10, 60):
     data = client.get(f"user:{user_id}")
 ```
 
 #### Automatic with run_with_rate_limit (simpler!)
+
 ```python
 data = client.run_with_rate_limit(
     client.get, f"api:user:{user_id}", 10, 60,
@@ -775,6 +796,7 @@ data = client.run_with_rate_limit(
 if data is None:
     return {"error": "Rate limit exceeded"}, 429
 ```
+
 #### Cache Pattern (Get or Set)
 
 ```python
@@ -786,18 +808,23 @@ def get_user_profile(user_id):
         ttl=300  # 5 minutes
     )
 ```
+
 #### Delete Pattern
 ```python
 # Delete all session keys for a user
 client.delete_pattern("session:user:123:*")
 ```
+
 #### SCAN Iterator (Memory Efficient)
+
 ```python
 # Iterate through keys without loading all into memory
 for key in client.scan_iter(match="user:*", count=100):
     print(key, client.get(key))
 ```
+
 #### Batch Operations
+
 ```python
 # Set multiple keys efficiently
 items = [("user:1", "John"), ("user:2", "Jane"), ("user:3", "Bob")]
@@ -807,6 +834,7 @@ client.batch_set(items)
 result = client.batch_get(["user:1", "user:2", "user:3"])
 ```
 #### Pub/Sub Messaging
+
 ``` python
 def message_handler(channel, message):
     print(f"Received on {channel}: {message}")
@@ -817,7 +845,9 @@ client.subscribe("notifications", message_handler)
 # Publish messages
 client.publish("notifications", "Hello subscribers!")
 ```
+
 ### Health Check
+
 ```python
 health = client.health_check()
 if health["status"] == "healthy":
@@ -825,7 +855,9 @@ if health["status"] == "healthy":
     print(f"Memory usage: {health['used_memory_human']}")
     print(f"Connected clients: {health['connected_clients']}")
 ```
+
 #### Performance Metrics
+
 ```python
 client.enable_metrics()
 
@@ -841,6 +873,7 @@ print(f"Total operations: {metrics['commands']['set']['count']}")
 client.reset_metrics()  # Clear metrics when needed
 ```
 #### Decorator Pattern
+
 ```python
 @client.cached(ttl=60)
 def expensive_database_query(user_id):
@@ -852,7 +885,9 @@ def unstable_network_call():
     # Automatically retries up to 3 times on failure
     return external_api.call()
 ```
+
 #### Pipeline with Context Manager
+
 ```python
 # Auto-executes when exiting the context
 with client.pipeline() as pipe:
@@ -860,7 +895,9 @@ with client.pipeline() as pipe:
     pipe.set("key2", "value2")
     pipe.incr("counter")
 ```
+
 #### Multiple Operations with mget/mset
+
 ```python
 # Set multiple keys
 client.mset({"user:1": "John", "user:2": "Jane", "user:3": "Bob"})
@@ -905,26 +942,52 @@ print(type)  # "string"
 # Get from multiple keys
 users = client.mget_json(["user:1", "user:2"], '$.name')
 print(users)  # {"user:1": "João", "user:2": "Maria"}
+
+
 ```
 
-## Shared Instance Pattern
+#### JSON Unwrap Control
 
-`redis-simplify` does not enforce a Singleton pattern.
-
-However, many applications create a single shared instance and reuse it throughout the project:
+Control how RedisJSON results are returned:
 
 ```python
-from redis_simplify import RedisClient
+# Default behavior (unwrap=True) - returns clean Python objects
+data = client.get_json("user:1", unwrap=True)
+# Returns: {"name": "João", "age": 30}
 
-redis_client = RedisClient(
-    host="localhost",
-    port=6379
-)
+# Raw RedisJSON format (unwrap=False) - returns lists
+data = client.get_json("user:1", unwrap=False)
+# Returns: [{"name": "João", "age": 30}]
+
+# Works with all JSON methods
+name = client.get_json_path("user:1", "$.name", unwrap=False)
+users = client.mget_json(["user:1", "user:2"], unwrap=False)
+## Shared Instance Pattern
 ```
 
 ### Fallback Control
 
 The library provides flexible fallback behavior that can be configured globally, per operation, or through decorators.
+
+#### Fallback Decorators
+
+Apply fallback behavior declaratively:
+
+```python
+from redis_simplify.mixins.decorators import with_fallback, no_fallback, fallback_value
+
+@with_fallback(default_return=None)
+def safe_get(key):
+    return client.get(key)
+
+@no_fallback
+def critical_get(key):
+    return client.get(key)  # Raises exception on error
+
+@fallback_value([])
+def safe_get_list(key):
+    return client.get(key)  # Returns [] on error
+```
 
 #### Global Fallback
 
@@ -1089,7 +1152,7 @@ def safe_get_list(key):
 
 ## Best Practices
 
-## Use `from_url()` for 12-factor apps
+### Use `from_url()` for 12-factor apps
 
 For cloud-native applications, use environment variables for configuration:
 
@@ -1103,7 +1166,7 @@ client = RedisClient.from_url(redis_url, log_level="INFO")
 
 ---
 
-## Use `update_url()` for dynamic reconfiguration
+### Use `update_url()` for dynamic reconfiguration
 
 For applications that need to switch Redis instances at runtime (e.g., blue-green deployments, failover, A/B testing):
 
@@ -1129,7 +1192,7 @@ except Exception:
     client.update_url(os.getenv("REDIS_BACKUP_URL"))
 ```
 
-## Configure retry policies for network resilience
+### Configure retry policies for network resilience
 
 For environments with different network characteristics:
 
@@ -1152,7 +1215,7 @@ def critical_operation():
     return client.get("critical_key")
 ```
 
-## Enable metrics for production monitoring
+### Enable metrics for production monitoring
 
 Monitor your Redis operations in production:
 
@@ -1177,7 +1240,7 @@ client.reset_metrics()
 
 ---
 
-## Use health checks for service monitoring
+### Use health checks for service monitoring
 
 Implement health checks for your service:
 
@@ -1205,7 +1268,7 @@ def health():
 
 ---
 
-## Monitor slow queries in production
+### Monitor slow queries in production
 
 Keep an eye on performance issues:
 
@@ -1235,7 +1298,7 @@ while True:
 
 ---
 
-## Use context managers for pipelines
+### Use context managers for pipelines
 
 Ensure pipelines are properly executed:
 
@@ -1259,7 +1322,7 @@ pipe.execute()  # Risk of forgetting this line
 
 ---
 
-## Use distributed locks for critical sections
+### Use distributed locks for critical sections
 
 Prevent race conditions:
 
@@ -1289,7 +1352,7 @@ def process_payment_manual(payment_id):
 
 ---
 
-## Handle connection errors gracefully
+### Handle connection errors gracefully
 
 Always check connectivity before critical operations:
 
@@ -1312,7 +1375,7 @@ def get_user_data(user_id):
 
 ---
 
-## Use appropriate log levels
+### Use appropriate log levels
 
 Configure logging based on environment:
 
@@ -1341,7 +1404,7 @@ client = RedisClient(
 
 ---
 
-## Reset metrics periodically
+### Reset metrics periodically
 
 Prevent memory growth:
 
@@ -1362,7 +1425,7 @@ def collect_and_reset_metrics():
 
 ---
 
-## Use batch operations for multiple keys
+### Use batch operations for multiple keys
 
 Improve performance by reducing round trips:
 
@@ -1397,7 +1460,7 @@ user4 = client.get("user:4")
 
 ---
 
-## Use SCAN instead of KEYS for large datasets
+### Use SCAN instead of KEYS for large datasets
 
 Avoid blocking Redis:
 
@@ -1430,7 +1493,7 @@ def process_all_users_dangerous():
 
 ---
 
-## Use memory monitoring to detect issues
+### Use memory monitoring to detect issues
 
 ```python
 def check_redis_memory():
@@ -1460,7 +1523,7 @@ def check_redis_memory():
 
 ---
 
-## Use Admin commands for debugging
+### Use Admin commands for debugging
 
 ```python
 def debug_redis_connection():
@@ -1488,7 +1551,7 @@ def debug_redis_connection():
 
 ---
 
-## Use cache patterns effectively
+### Use cache patterns effectively
 
 ```python
 def get_user_profile(user_id):
@@ -1518,7 +1581,7 @@ def invalidate_user_cache(user_id):
 
 ---
 
-## Use rate limiting to protect APIs
+### Use rate limiting to protect APIs
 
 ```python
 def api_endpoint(user_id):
@@ -1556,7 +1619,7 @@ def api_endpoint_simple(user_id):
 
 ---
 
-## Use Pub/Sub for real-time notifications
+### Use Pub/Sub for real-time notifications
 
 ```python
 def setup_notification_handlers():
@@ -1588,7 +1651,7 @@ def notify_order_update(order_id, status):
 
 ---
 
-## Use proper cleanup when using context managers
+### Use proper cleanup when using context managers
 
 ```python
 # Automatic cleanup
@@ -1614,7 +1677,7 @@ finally:
 
 ---
 
-## Use decorators for common patterns
+### Use decorators for common patterns
 
 ```python
 @client.cached(ttl=60, key_prefix="db")
@@ -1633,7 +1696,7 @@ def get_external_data_with_retry(endpoint):
 
 ---
 
-## Use info sections for targeted monitoring
+### Use info sections for targeted monitoring
 
 ```python
 def monitor_redis():
@@ -1653,7 +1716,7 @@ def monitor_redis():
 
 ---
 
-## Use async flush for non-blocking operations
+### Use async flush for non-blocking operations
 
 ```python
 # Recommended
@@ -1679,11 +1742,13 @@ client.flushdb()
 The project includes automated tests built with `pytest`.
 
 ### Run all tests
+
 ```bash
 pytest tests/ -v
 ```
 
 ### Run specific test categories
+
 ```bash
 # Run only string operations tests
 pytest tests/test_client.py::TestRedisClientString -v
