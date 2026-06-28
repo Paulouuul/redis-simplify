@@ -220,3 +220,28 @@ class ConnectionMixin:
         # Reconecta para aplicar as novas configurações
         self._connect()
         logger.info(f"Retry config updated: {retries} attempts with backoff base {backoff_base}s")
+
+
+    def set_timeouts(self, socket_timeout: Optional[float] = None,
+                 socket_connect_timeout: Optional[float] = None,
+                 retry_on_timeout: bool = False):
+        """
+        Configura timeouts do cliente.
+        
+        Args:
+            socket_timeout: Timeout para operações em segundos
+            socket_connect_timeout: Timeout para conexão em segundos
+            retry_on_timeout: Se deve tentar novamente em timeout
+        """
+        if socket_timeout is not None:
+            self.extra_kwargs['socket_timeout'] = socket_timeout
+        if socket_connect_timeout is not None:
+            self.extra_kwargs['socket_connect_timeout'] = socket_connect_timeout
+        if retry_on_timeout is not None:
+            self.extra_kwargs['retry_on_timeout'] = retry_on_timeout
+        
+        # Reconecta para aplicar as novas configurações
+        self._connect()
+        logger.info(f"Timeouts updated: socket_timeout={socket_timeout}, "
+                    f"socket_connect_timeout={socket_connect_timeout}, "
+                    f"retry_on_timeout={retry_on_timeout}")
